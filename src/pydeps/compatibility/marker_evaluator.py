@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from packaging.markers import InvalidMarker, Marker
@@ -11,22 +12,58 @@ from pydeps.models.compatibility import CompatibilityStatus, MarkerEvaluation
 from pydeps.models.dependencies import Dependency
 from pydeps.models.project import TargetEnvironment
 
+KNOWN_PEP508_VARIABLES: frozenset[str] = frozenset(
+    {
+        "os_name",
+        "sys_platform",
+        "platform_machine",
+        "platform_python_implementation",
+        "platform_release",
+        "platform_system",
+        "platform_version",
+        "python_version",
+        "python_full_version",
+        "implementation_name",
+        "implementation_version",
+        "extra",
+    }
+)
+
 
 def extract_marker_variables(marker: Marker) -> set[str]:
-    """Recursively extract all environment variable names referenced in a Marker AST."""
+    """Extract all environment variable names referenced in a Marker expression.
+
+    Uses AST traversal when available in packaging, reinforced with a guarded
+    tokenization strategy to guarantee resilience across packaging versions.
+    """
     variables: set[str] = set()
 
-    def _traverse(node: Any) -> None:
-        if isinstance(node, tuple):
-            for part in node:
-                if type(part).__name__ == "Variable":
-                    variables.add(str(part.value))
-        elif isinstance(node, list):
-            for sub in node:
-                _traverse(sub)
-
+    # Strategy 1: AST traversal (guarded against packaging internal AST changes)
     if hasattr(marker, "_markers") and marker._markers:
-        _traverse(marker._markers)
+        try:
+
+            def _traverse(node: Any) -> None:
+                if isinstance(node, tuple):
+                    for part in node:
+                        if type(part).__name__ == "Variable":
+                            variables.add(str(part.value))
+                        elif hasattr(part, "value") and isinstance(part.value, str):
+                            if part.value in KNOWN_PEP508_VARIABLES:
+                                variables.add(part.value)
+                elif isinstance(node, list):
+                    for sub in node:
+                        _traverse(sub)
+
+            _traverse(marker._markers)
+        except Exception:
+            pass
+
+    # Strategy 2: Guarded tokenization cross-check against standard PEP 508 variables
+    marker_text = str(marker)
+    tokens = set(re.findall(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\b", marker_text))
+    for var in KNOWN_PEP508_VARIABLES:
+        if var in tokens:
+            variables.add(var)
 
     return variables
 

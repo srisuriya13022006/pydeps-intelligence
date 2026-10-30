@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from packaging.utils import canonicalize_name
 
 from pydeps.compatibility.compatibility_engine import CompatibilityEngine
+from pydeps.compatibility.platform_profiles import TargetPlatformProfile
 from pydeps.metadata.metadata_models import MetadataResult, PackageRelease
 from pydeps.models.compatibility import (
     CompatibilityMatrix,
@@ -27,6 +28,7 @@ class MatrixBuilder:
         self,
         release: PackageRelease,
         targets: Sequence[TargetEnvironment],
+        profiles: dict[str, TargetPlatformProfile] | None = None,
         extra: str | None = None,
     ) -> PackageCompatibilityMatrix:
         """Evaluate a single package release across multiple target environments."""
@@ -37,7 +39,8 @@ class MatrixBuilder:
 
         for target in targets:
             tag = target.platform_tag
-            res = self.engine.evaluate_release(release, target=target, extra=extra)
+            prof = profiles.get(tag) if profiles else None
+            res = self.engine.evaluate_release(release, target=target, profile=prof, extra=extra)
             results[tag] = res
 
             if res.status == CompatibilityStatus.COMPATIBLE:
@@ -65,9 +68,21 @@ class MatrixBuilder:
         self,
         releases: Sequence[PackageRelease] | dict[str, PackageRelease | MetadataResult],
         targets: Sequence[TargetEnvironment],
+        profiles: dict[str, TargetPlatformProfile] | Sequence[TargetPlatformProfile] | None = None,
         extra: str | None = None,
     ) -> CompatibilityMatrix:
         """Build a comprehensive compatibility matrix across packages and targets."""
+        # Normalize profiles into dict[tag, TargetPlatformProfile]
+        profile_map: dict[str, TargetPlatformProfile] = {}
+        if isinstance(profiles, dict):
+            profile_map = dict(profiles)
+        elif isinstance(profiles, Sequence):
+            for p in profiles:
+                for t in targets:
+                    if p.sys_platform == t.operating_system.value and (
+                        p.python_version == t.python_version or not p.python_version
+                    ):
+                        profile_map[t.platform_tag] = p
         # Normalize releases into list of PackageRelease
         release_list: list[PackageRelease] = []
         diagnostics: list[str] = []
@@ -110,7 +125,8 @@ class MatrixBuilder:
             pkg_name = rel.distribution_name
             matrix_dict[pkg_name] = {}
             for target in sorted_targets:
-                res = self.engine.evaluate_release(rel, target=target, extra=extra)
+                prof = profile_map.get(target.platform_tag)
+                res = self.engine.evaluate_release(rel, target=target, profile=prof, extra=extra)
                 matrix_dict[pkg_name][target.platform_tag] = res
                 entries.append(res)
 

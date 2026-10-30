@@ -119,6 +119,36 @@ PyDeps is a Python Dependency Intelligence Engine designed to analyze codebases,
   - A release with conflicting Python constraints or incompatible wheels without sdists evaluates to `incompatible`.
 - **Evidence Semantics:** Every evaluation yields auditable evidence including evaluated Python specifiers, candidate wheel tags, rejected wheel reasons, and marker evaluations. Missing metadata (such as an absent `Requires-Python` header) evaluates to `unverified` rather than being assumed compatible.
 
+### ADR-013: Resolver Backend Abstraction
+- **Decision:** Implement a dual-backend resolver architecture with `uv` as the high-performance primary resolver and standard `pip` (`pip install --dry-run --report`) as a limited fallback backend.
+- **No Custom Backtracking:** Avoid maintaining a proprietary backtracking dependency solver. Instead, leverage modern standard-compliant package resolvers via subprocess execution.
+- **Backend Limitations:**
+  - `uv` provides universal project resolution (`uv lock`), multi-platform environment marker forks, native `uv.lock` generation, and pinned `requirements.txt` exports (`uv export`).
+  - `pip` provides single-target or host-target dry-run resolution reporting. `pip` cannot generate a universal multi-environment lockfile (`uv.lock`) and cannot reliably resolve for foreign architectures without explicit foreign platform flags (`--python-version`, `--platform`, `--implementation`, `--abi`). Universal resolution requests to the pip backend are rejected with structured diagnostics.
+
+### ADR-014: Universal Versus Per-Target Resolution
+- **Decision:** Support two independent, clearly distinguished resolution modes:
+  1. **Universal Resolution:** Resolves project dependencies into a complete, multi-environment lockfile (`uv.lock`) and pinned `requirements.txt` satisfying configured Python ranges and marker environments. Universal resolution resolves marker forks; it does not claim or prove that prebuilt native binary wheels exist on all platforms.
+  2. **Per-Target Resolution:** Resolves dependencies independently for each discrete target profile (e.g., `windows-cp311-x86_64`, `linux-cp312-x86_64`), producing separate pinned requirement sets and dependency graphs for each target.
+
+### ADR-015: Dependency Classification and Constraint Precedence
+- **Decision:** Classify dependency candidates based on explicit source-level syntactic evidence:
+  - Runtime imports from production source directories -> `runtime` (direct).
+  - Imports discovered only in test files/directories (`tests/`, `test_*.py`) -> `dev`.
+  - Imports discovered only within `if TYPE_CHECKING:` guards -> `type_checking`.
+  - Guarded imports discovered inside `try/except ImportError:` -> `optional`.
+  - Imports originating from Jupyter notebooks (`.ipynb`) -> `notebook`.
+  - Dynamic imports (`__import__`, `importlib`) -> unresolved diagnostics.
+- **Mapping Safety:** HIGH-confidence unambiguous mappings are automatically considered for candidate generation. Ambiguous mappings (e.g. `cv2` mapping to both `opencv-python` and `opencv-python-headless`) are NEVER automatically selected.
+- **Constraint Precedence:** Static project constraints discovered in `pyproject.toml`, `requirements.txt`, `constraints.txt`, or `setup.cfg` take absolute precedence over unconstrained import candidates. Existing declarations are never silently overwritten.
+
+### ADR-016: Resolver Execution and Security Isolation
+- **Decision:** Subprocess execution for dependency resolution is strictly isolated and guarded:
+  - Subprocesses are executed exclusively within disposable temporary directories (`ResolutionWorkspace`) containing synthetic manifests; user repository files are never modified without explicit consent.
+  - Subprocess commands are executed with explicit argument vectors (`shell=False`), working directories, and enforced timeouts.
+  - Subprocess commands and error outputs are sanitized to avoid leaking sensitive registry credentials into log files or user reports.
+  - Untrusted code execution is prevented: `setup.py` is never run statically, and resolution passes `--no-build` or `--only-binary=:all:` to avoid executing arbitrary third-party build hooks during resolution.
+
 ## 4. Component Layout
 
 ```
@@ -138,7 +168,7 @@ PyDeps/
 │       │   ├── imports.py        # ImportRecord, PackageMapping, ImportContext
 │       │   ├── mapping.py        # PackageMappingResult, ConfidenceLevel, PackageReport
 │       │   ├── analysis.py       # ImportAnalysisResult aggregate findings
-│       │   ├── dependencies.py   # Dependency, ResolutionResult
+│       │   ├── dependencies.py   # Dependency, ResolutionRequest, ResolutionResult, ResolvedDependencyGraph
 │       │   ├── compatibility.py  # CompatibilityResult, Matrix, TargetPlatformProfile
 │       │   ├── validation.py     # ValidationResult, ValidationStatus
 │       │   └── report.py         # AnalysisReport aggregate model
@@ -180,9 +210,21 @@ PyDeps/
 │       │   ├── artifact_evaluator.py # Wheel vs sdist candidate evaluation
 │       │   ├── compatibility_engine.py # Release-level compatibility engine orchestrator
 │       │   └── compatibility_matrix.py # Multi-target, multi-package matrix builder
+│       ├── resolver/
+│       │   ├── __init__.py       # Resolver public exports
+│       │   ├── dependency_classifier.py # Grouping imports into runtime, dev, type-checking, etc.
+│       │   ├── constraint_collector.py # Static parsing of pyproject.toml, requirements, constraints
+│       │   ├── resolution_strategy.py # Strategy mapping to resolver flags
+│       │   ├── resolution_workspace.py # Isolated temporary resolution workspace
+│       │   ├── conflict_analyzer.py # Structured conflict and diagnostic extraction
+│       │   ├── uv_backend.py     # Primary uv subprocess backend (uv lock, uv pip compile)
+│       │   ├── pip_backend.py    # Fallback pip subprocess backend (pip install --dry-run --report)
+│       │   ├── lockfile_exporter.py # Safe disk exporter for uv.lock, requirements.txt, resolution.json
+│       │   ├── dependency_resolver.py # Unified resolver backend execution engine
+│       │   └── resolution_orchestrator.py # End-to-end resolution pipeline coordinator
 │       └── cli/
 │           ├── __init__.py
-│           └── main.py           # Typer CLI application (scan, analyze, map, metadata, compatibility)
+│           └── main.py           # Typer CLI application (scan, analyze, map, metadata, compatibility, resolve)
 ├── tests/
 │   ├── unit/
 │   │   ├── test_config.py        # Config parsing, validation, and defaults
@@ -198,18 +240,27 @@ PyDeps/
 │   │   ├── test_python_compatibility.py # Requires-Python boundaries, compound specifiers
 │   │   ├── test_marker_evaluator.py # PEP 508 marker evaluations and missing field detection
 │   │   ├── test_wheel_compatibility.py # Wheel tag matching (universal, abi3, manylinux, musl)
-│   │   └── test_artifact_evaluator.py # Artifact evaluator, wheel vs sdist, yanked warnings
+│   │   ├── test_artifact_evaluator.py # Artifact evaluator, wheel vs sdist, yanked warnings
+│   │   ├── test_dependency_classifier.py # Import classification, overrides, and ambiguity safety
+│   │   ├── test_constraint_collector.py # Static constraint collection from manifests
+│   │   ├── test_resolution_strategy.py # Strategy mapping to uv and pip flags
+│   │   └── test_conflict_analyzer.py # Normalization of resolver conflicts and diagnostics
 │   └── integration/
 │       ├── test_cli.py           # CLI invocation (scan, analyze, map, metadata, errors)
 │       ├── test_cli_compatibility.py # CLI compatibility command tests
+│       ├── test_cli_resolve.py   # CLI resolve command tests (universal, per-target, json)
 │       ├── test_facade.py        # High-level PyDeps facade end-to-end flow
 │       ├── test_metadata_provider.py # MetadataProvider mocked PyPI integration & caching
 │       ├── test_pipeline.py      # End-to-end multi-package pipeline execution
 │       ├── test_pypi_client.py   # PyPIClient HTTP status, rate limit, and retry handling
-│       └── test_compatibility_matrix.py # Multi-target compatibility matrix and JSON serialization
+│       ├── test_compatibility_matrix.py # Multi-target compatibility matrix and JSON serialization
+│       ├── test_uv_backend.py    # uv subprocess backend execution and lockfile parsing
+│       ├── test_pip_backend.py   # pip fallback dry-run resolution and foreign platform flags
+│       └── test_resolver_e2e.py  # End-to-end resolution flows (Flask, ML, conflicting, markers)
 ├── docs/
 │   └── architecture.md           # This architecture documentation
 ├── pyproject.toml                # Project metadata, dependencies, tool configs
 ├── README.md                     # Overview, quickstart, and development guide
 └── .gitignore                    # Standard Python/IDE exclusions
 ```
+

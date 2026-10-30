@@ -17,7 +17,20 @@ from pydeps.models.compatibility import (
     PackageCompatibility,
     PackageCompatibilityMatrix,
 )
-from pydeps.models.dependencies import Dependency, DependencyType, ResolutionResult
+from pydeps.models.dependencies import (
+    Dependency,
+    DependencyType,
+    ResolutionConflict,
+    ResolutionDiagnostic,
+    ResolutionMode,
+    ResolutionRequest,
+    ResolutionResult,
+    ResolutionStatus,
+    ResolutionStrategy,
+    ResolutionTarget,
+    ResolvedDependencyGraph,
+    ResolvedPackage,
+)
 from pydeps.models.imports import (
     ImportContext,
     ImportRecord,
@@ -70,7 +83,16 @@ __all__ = [
     "ProjectStructure",
     "PythonImplementation",
     "ReleaseArtifact",
+    "ResolutionConflict",
+    "ResolutionDiagnostic",
+    "ResolutionMode",
+    "ResolutionRequest",
     "ResolutionResult",
+    "ResolutionStatus",
+    "ResolutionStrategy",
+    "ResolutionTarget",
+    "ResolvedDependencyGraph",
+    "ResolvedPackage",
     "TargetEnvironment",
     "ValidationResult",
     "ValidationStatus",

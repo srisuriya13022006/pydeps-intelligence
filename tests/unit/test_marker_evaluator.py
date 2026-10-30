@@ -165,3 +165,66 @@ def test_marker_malformed_syntax() -> None:
     assert res.status == CompatibilityStatus.UNVERIFIED
     assert res.applies is None
     assert "Malformed PEP 508" in res.explanation
+
+
+def test_marker_isolation_windows_target() -> None:
+    """Regression test: Windows target markers are isolated from host environment."""
+    win_target = _make_target(os=OperatingSystem.WINDOWS, arch=Architecture.X86_64)
+    evaluator = MarkerEvaluator(target=win_target)
+
+    dep_win_nt = Dependency(name="win-nt", environment_marker="os_name == 'nt'")
+    dep_win_sys = Dependency(name="win-sys", environment_marker="sys_platform == 'win32'")
+    dep_linux_sys = Dependency(name="lin-sys", environment_marker="sys_platform == 'linux'")
+    dep_darwin_sys = Dependency(name="mac-sys", environment_marker="sys_platform == 'darwin'")
+
+    assert evaluator.evaluate_dependency(dep_win_nt).applies is True
+    assert evaluator.evaluate_dependency(dep_win_sys).applies is True
+    assert evaluator.evaluate_dependency(dep_linux_sys).applies is False
+    assert evaluator.evaluate_dependency(dep_darwin_sys).applies is False
+
+
+def test_marker_isolation_linux_target() -> None:
+    """Regression test: Linux target markers are isolated from host environment."""
+    linux_target = _make_target(os=OperatingSystem.LINUX, arch=Architecture.AARCH64)
+    evaluator = MarkerEvaluator(target=linux_target)
+
+    dep_posix = Dependency(name="posix-pkg", environment_marker="os_name == 'posix'")
+    dep_linux = Dependency(name="linux-pkg", environment_marker="sys_platform == 'linux'")
+    dep_win = Dependency(name="win-pkg", environment_marker="sys_platform == 'win32'")
+    dep_machine = Dependency(name="arm-pkg", environment_marker="platform_machine == 'aarch64'")
+    dep_x86 = Dependency(name="x86-pkg", environment_marker="platform_machine == 'x86_64'")
+
+    assert evaluator.evaluate_dependency(dep_posix).applies is True
+    assert evaluator.evaluate_dependency(dep_linux).applies is True
+    assert evaluator.evaluate_dependency(dep_win).applies is False
+    assert evaluator.evaluate_dependency(dep_machine).applies is True
+    assert evaluator.evaluate_dependency(dep_x86).applies is False
+
+
+def test_marker_isolation_macos_target() -> None:
+    """Regression test: macOS target markers are isolated from host environment."""
+    mac_target = _make_target(os=OperatingSystem.MACOS, arch=Architecture.ARM64)
+    evaluator = MarkerEvaluator(target=mac_target)
+
+    dep_darwin = Dependency(name="mac-pkg", environment_marker="sys_platform == 'darwin'")
+    dep_linux = Dependency(name="lin-pkg", environment_marker="sys_platform == 'linux'")
+    dep_win = Dependency(name="win-pkg", environment_marker="sys_platform == 'win32'")
+    dep_arm = Dependency(name="arm-pkg", environment_marker="platform_machine == 'arm64'")
+
+    assert evaluator.evaluate_dependency(dep_darwin).applies is True
+    assert evaluator.evaluate_dependency(dep_linux).applies is False
+    assert evaluator.evaluate_dependency(dep_win).applies is False
+    assert evaluator.evaluate_dependency(dep_arm).applies is True
+
+
+def test_marker_guarded_variable_extraction_fallback() -> None:
+    """Regression test: guarded marker variable extraction works with or without _markers AST."""
+    from packaging.markers import Marker
+
+    from pydeps.compatibility.marker_evaluator import extract_marker_variables
+
+    marker = Marker("sys_platform == 'linux' and python_version >= '3.11' and os_name == 'posix'")
+    vars_found = extract_marker_variables(marker)
+    assert "sys_platform" in vars_found
+    assert "python_version" in vars_found
+    assert "os_name" in vars_found

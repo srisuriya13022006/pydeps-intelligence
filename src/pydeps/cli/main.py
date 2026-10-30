@@ -9,7 +9,10 @@ import typer
 
 from pydeps._version import __version__
 from pydeps.analyzer.analyzer import ImportAnalyzer
-from pydeps.compatibility.platform_profiles import is_valid_target_configuration
+from pydeps.compatibility.platform_profiles import (
+    TargetPlatformProfile,
+    is_valid_target_configuration,
+)
 from pydeps.facade import PyDeps
 from pydeps.metadata.metadata_provider import MetadataProvider
 from pydeps.models.compatibility import CompatibilityStatus
@@ -433,6 +436,13 @@ def compatibility_command(
             help="Package extra to activate during marker evaluation.",
         ),
     ] = None,
+    platform_profile: Annotated[
+        str | None,
+        typer.Option(
+            "--platform-profile",
+            help="Path to JSON file containing TargetPlatformProfile configuration or overrides.",
+        ),
+    ] = None,
     offline: Annotated[
         bool,
         typer.Option(
@@ -501,12 +511,40 @@ def compatibility_command(
         typer.secho("Error: No valid target environments specified.", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
-    # 2. Run analysis, package mapping, metadata fetching, and compatibility evaluation
+    # 2. Parse optional custom platform profiles
+    custom_profiles: list[TargetPlatformProfile] = []
+    if platform_profile:
+        profile_path = Path(platform_profile)
+        if profile_path.exists():
+            try:
+                import json
+
+                with open(profile_path, encoding="utf-8") as f:
+                    raw_data = json.load(f)
+                if isinstance(raw_data, list):
+                    custom_profiles = [
+                        TargetPlatformProfile.model_validate(item) for item in raw_data
+                    ]
+                elif isinstance(raw_data, dict):
+                    custom_profiles = [TargetPlatformProfile.model_validate(raw_data)]
+            except Exception as err:
+                skipped_targets.append(f"Failed to load custom platform profile: {err}")
+        else:
+            skipped_targets.append(
+                f"Specified platform profile path does not exist: {platform_profile}"
+            )
+
+    # 3. Run analysis, package mapping, metadata fetching, and compatibility evaluation
     engine = PyDeps(project_path=project_path, offline=offline)
     analysis = engine.analyze()
     package_report = engine.resolve_packages(analysis)
     metadata = engine.fetch_metadata(package_report, offline=offline)
-    matrix = engine.check_compatibility(metadata=metadata, targets=targets, extra=extra)
+    matrix = engine.check_compatibility(
+        metadata=metadata,
+        targets=targets,
+        profiles=custom_profiles if custom_profiles else None,
+        extra=extra,
+    )
 
     if skipped_targets:
         matrix.diagnostics.extend(skipped_targets)
@@ -552,6 +590,247 @@ def compatibility_command(
         typer.secho("\nDiagnostics & Skipped Targets:", fg=typer.colors.YELLOW)
         for diag in matrix.diagnostics:
             typer.echo(f"  - {diag}")
+
+
+@app.command("resolve")
+def resolve_command(
+    project_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Path to project root directory to resolve.",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            readable=True,
+            resolve_path=True,
+        ),
+    ] = Path("."),
+    mode: Annotated[
+        str,
+        typer.Option(
+            "--mode",
+            "-m",
+            help="Resolution mode: 'universal' (default) or 'per-target'.",
+        ),
+    ] = "universal",
+    backend: Annotated[
+        str,
+        typer.Option(
+            "--backend",
+            "-b",
+            help="Resolver backend to use: 'uv' (default) or 'pip'.",
+        ),
+    ] = "uv",
+    python: Annotated[
+        str | None,
+        typer.Option(
+            "--python",
+            "-p",
+            help="Target Python version(s), comma-separated (e.g. '3.11,3.12').",
+        ),
+    ] = None,
+    operating_system: Annotated[
+        str | None,
+        typer.Option(
+            "--os",
+            help="Target operating system(s), comma-separated (e.g. 'windows,linux,macos').",
+        ),
+    ] = None,
+    architecture: Annotated[
+        str | None,
+        typer.Option(
+            "--arch",
+            help="Target hardware architecture(s), comma-separated (e.g. 'x86_64,arm64').",
+        ),
+    ] = None,
+    implementation: Annotated[
+        str | None,
+        typer.Option(
+            "--implementation",
+            help="Target Python implementation(s), comma-separated (e.g. 'cpython,pypy').",
+        ),
+    ] = None,
+    abi: Annotated[
+        str | None,
+        typer.Option(
+            "--abi",
+            help="Explicit target ABI tag if specified.",
+        ),
+    ] = None,
+    strategy: Annotated[
+        str,
+        typer.Option(
+            "--strategy",
+            "-s",
+            help="Resolution strategy: 'latest-compatible', 'fewest-versions', etc.",
+        ),
+    ] = "latest-compatible",
+    extra: Annotated[
+        str | None,
+        typer.Option(
+            "--extra",
+            help="Project extra(s) to activate, comma-separated.",
+        ),
+    ] = None,
+    include_dev: Annotated[
+        bool,
+        typer.Option(
+            "--include-dev",
+            help="Include development and test dependencies in resolution.",
+        ),
+    ] = False,
+    include_optional: Annotated[
+        bool,
+        typer.Option(
+            "--include-optional",
+            help="Include optional guarded dependencies in resolution.",
+        ),
+    ] = False,
+    offline: Annotated[
+        bool,
+        typer.Option(
+            "--offline",
+            help="Operate strictly offline using local metadata/cache.",
+        ),
+    ] = False,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Directory path to export resolved lockfiles and requirements.",
+        ),
+    ] = None,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Format resolution result as structured JSON.",
+        ),
+    ] = False,
+    upgrade: Annotated[
+        bool,
+        typer.Option(
+            "--upgrade",
+            "-U",
+            help="Upgrade existing locked packages to latest compatible versions.",
+        ),
+    ] = False,
+) -> None:
+    """Resolve direct and transitive dependencies and export reproducible lockfiles."""
+    # 1. Parse targets if in per-target mode
+    targets: list[TargetEnvironment] = []
+    if mode.lower() == "per-target":
+        py_list = [p.strip() for p in python.split(",")] if python else ["3.11"]
+        os_list = (
+            [OperatingSystem(o.strip()) for o in operating_system.split(",")]
+            if operating_system
+            else [OperatingSystem.LINUX]
+        )
+        arch_list = (
+            [Architecture(a.strip()) for a in architecture.split(",")]
+            if architecture
+            else [Architecture.X86_64]
+        )
+        impl_list = (
+            [PythonImplementation(i.strip().lower()) for i in implementation.split(",")]
+            if implementation
+            else [PythonImplementation.CPYTHON]
+        )
+        for py_v in py_list:
+            for os_v in os_list:
+                for arch_v in arch_list:
+                    for impl_v in impl_list:
+                        targets.append(
+                            TargetEnvironment(
+                                python_version=py_v,
+                                operating_system=os_v,
+                                architecture=arch_v,
+                                implementation=impl_v,
+                            )
+                        )
+
+    extras_list = [e.strip() for e in extra.split(",")] if extra else []
+
+    # 2. Run engine orchestration
+    engine = PyDeps(project_path=project_path, offline=offline)
+    analysis = engine.analyze()
+    package_report = engine.resolve_packages(analysis)
+
+    result = engine.resolve_dependencies(
+        package_report=package_report,
+        analysis=analysis,
+        mode=mode,
+        strategy=strategy,
+        backend=backend,
+        targets=targets if targets else None,
+        extras=extras_list,
+        include_dev=include_dev,
+        include_optional=include_optional,
+        offline=offline,
+        output_dir=output,
+        upgrade=upgrade,
+    )
+
+    if json_output:
+        typer.echo(result.model_dump_json(indent=2))
+        if not result.success:
+            raise typer.Exit(code=1)
+        return
+
+    # 3. Rich human-readable display
+    header = f"=== PyDeps Resolution: {project_path.name} ==="
+    typer.secho(header, fg=typer.colors.CYAN)
+    typer.echo(f"Mode:     {result.mode.value}")
+    typer.echo(f"Backend:  {result.backend}")
+    typer.echo(f"Strategy: {result.strategy.value}")
+
+    if result.success:
+        typer.secho(f"Status:   SUCCESS ({result.status.value})", fg=typer.colors.GREEN)
+    else:
+        typer.secho(f"Status:   FAILURE ({result.status.value})", fg=typer.colors.RED)
+
+    if result.graph:
+        g = result.graph
+        typer.echo(f"\nResolved Direct:     {g.direct_count}")
+        typer.echo(f"Resolved Transitive: {g.transitive_count}")
+        typer.echo(f"Total Packages:      {len(g.packages)}")
+
+        typer.echo("\n--- Direct Dependencies ---")
+        for root in sorted(g.roots):
+            pkg = g.packages.get(root)
+            ver = pkg.version if pkg else "?"
+            typer.secho(f"  {root} == {ver}", fg=typer.colors.GREEN)
+
+        transitive_keys = [k for k in g.packages if k not in g.roots]
+        if transitive_keys:
+            typer.echo("\n--- Transitive Dependencies ---")
+            for t in sorted(transitive_keys):
+                pkg = g.packages[t]
+                typer.echo(f"  {t} == {pkg.version} (required by: {', '.join(pkg.required_by)})")
+
+    elif result.resolved_dependencies:
+        typer.echo(f"\nResolved Dependencies: {len(result.resolved_dependencies)}")
+        for d in sorted(result.resolved_dependencies, key=lambda x: x.name):
+            typer.echo(f"  {d.name} {d.version_specifier or ''}")
+
+    if result.conflicts:
+        typer.secho("\nConflicts Encountered:", fg=typer.colors.RED, bold=True)
+        for c in result.conflicts:
+            typer.echo(f"  - {c}")
+
+    if result.diagnostics:
+        typer.secho("\nDiagnostics:", fg=typer.colors.YELLOW)
+        for diag in result.diagnostics:
+            typer.echo(f"  [{diag.level.upper()}] {diag.message}")
+
+    if result.output_files:
+        typer.secho("\nExported Output Files:", fg=typer.colors.GREEN)
+        for f in result.output_files:
+            typer.echo(f"  - {f}")
+
+    if not result.success:
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
