@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from pydeps.analyzer.analyzer import ImportAnalyzer
+from pydeps.compatibility.compatibility_matrix import MatrixBuilder
 from pydeps.config import resolve_project_config
 from pydeps.metadata.metadata_cache import MetadataCache
-from pydeps.metadata.metadata_models import MetadataResult
+from pydeps.metadata.metadata_models import MetadataResult, PackageRelease
 from pydeps.metadata.metadata_provider import MetadataProvider
 from pydeps.models.analysis import ImportAnalysisResult
+from pydeps.models.compatibility import CompatibilityMatrix
 from pydeps.models.mapping import PackageReport
-from pydeps.models.project import ProjectConfig
+from pydeps.models.project import ProjectConfig, TargetEnvironment
 from pydeps.models.structure import ProjectStructure
 from pydeps.registry.package_mapper import PackageMapper
 from pydeps.scanner.scanner import ProjectScanner
@@ -85,3 +87,26 @@ class PyDeps:
         # Only query distributions resolved from external imports
         target_dists = package_report.selected_distributions
         return self.metadata_provider.get_batch_metadata(target_dists, offline=is_offline)
+
+    def check_compatibility(
+        self,
+        metadata: dict[str, MetadataResult | PackageRelease]
+        | Sequence[PackageRelease]
+        | None = None,
+        targets: Sequence[TargetEnvironment] | TargetEnvironment | None = None,
+        extra: str | None = None,
+    ) -> CompatibilityMatrix:
+        """Evaluate package releases against target environments producing a CompatibilityMatrix."""
+        if metadata is None:
+            metadata = self.fetch_metadata()
+
+        target_list: list[TargetEnvironment] = []
+        if targets is None:
+            target_list = list(self.config.target_environments)
+        elif isinstance(targets, TargetEnvironment):
+            target_list = [targets]
+        else:
+            target_list = list(targets)
+
+        builder = MatrixBuilder()
+        return builder.evaluate_matrix(releases=metadata, targets=target_list, extra=extra)

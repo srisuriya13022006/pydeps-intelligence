@@ -9,7 +9,16 @@ import typer
 
 from pydeps._version import __version__
 from pydeps.analyzer.analyzer import ImportAnalyzer
+from pydeps.compatibility.platform_profiles import is_valid_target_configuration
+from pydeps.facade import PyDeps
 from pydeps.metadata.metadata_provider import MetadataProvider
+from pydeps.models.compatibility import CompatibilityStatus
+from pydeps.models.project import (
+    Architecture,
+    OperatingSystem,
+    PythonImplementation,
+    TargetEnvironment,
+)
 from pydeps.registry.package_mapper import PackageMapper
 from pydeps.scanner.scanner import ProjectScanner
 
@@ -378,6 +387,171 @@ def metadata_command(
         sha_short = (art.sha256[:10] + "...") if art.sha256 else "None"
         info = f"{art.package_type}, {art.size or 0} bytes, sha256:{sha_short}"
         typer.echo(f"  - {art.filename} ({info})")
+
+
+@app.command("compatibility")
+def compatibility_command(
+    project_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Path to project root directory to evaluate.",
+            exists=False,
+        ),
+    ] = Path("."),
+    python: Annotated[
+        str | None,
+        typer.Option(
+            "--python",
+            help="Comma-separated Python versions (e.g. '3.10,3.11,3.12').",
+        ),
+    ] = None,
+    operating_system: Annotated[
+        str | None,
+        typer.Option(
+            "--os",
+            help="Comma-separated operating systems (e.g. 'windows,linux,macos').",
+        ),
+    ] = None,
+    architecture: Annotated[
+        str | None,
+        typer.Option(
+            "--arch",
+            help="Comma-separated machine architectures (e.g. 'x86_64,arm64').",
+        ),
+    ] = None,
+    implementation: Annotated[
+        str | None,
+        typer.Option(
+            "--implementation",
+            help="Comma-separated Python implementations (e.g. 'CPython,PyPy').",
+        ),
+    ] = None,
+    extra: Annotated[
+        str | None,
+        typer.Option(
+            "--extra",
+            help="Package extra to activate during marker evaluation.",
+        ),
+    ] = None,
+    offline: Annotated[
+        bool,
+        typer.Option(
+            "--offline",
+            help="Operate in offline mode (only use cached PyPI metadata).",
+        ),
+    ] = False,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Format compatibility matrix as structured JSON.",
+        ),
+    ] = False,
+) -> None:
+    """Evaluate cross-platform package release compatibility across target environments."""
+    if not project_path.exists():
+        typer.secho(
+            f"Error: Specified project path does not exist: {project_path}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    # 1. Parse configured targets
+    py_list = [p.strip() for p in python.split(",")] if python else ["3.10", "3.11", "3.12"]
+    os_list = (
+        [OperatingSystem(o.strip()) for o in operating_system.split(",")]
+        if operating_system
+        else [OperatingSystem.LINUX, OperatingSystem.WINDOWS, OperatingSystem.MACOS]
+    )
+    arch_list = (
+        [Architecture(a.strip()) for a in architecture.split(",")]
+        if architecture
+        else [Architecture.X86_64, Architecture.ARM64]
+    )
+    impl_list = (
+        [PythonImplementation(i.strip().lower()) for i in implementation.split(",")]
+        if implementation
+        else [PythonImplementation.CPYTHON]
+    )
+
+    targets: list[TargetEnvironment] = []
+    skipped_targets: list[str] = []
+
+    for py_v in py_list:
+        for os_v in os_list:
+            for arch_v in arch_list:
+                for impl_v in impl_list:
+                    try:
+                        target = TargetEnvironment(
+                            python_version=py_v,
+                            operating_system=os_v,
+                            architecture=arch_v,
+                            implementation=impl_v,
+                        )
+                        is_valid, reason = is_valid_target_configuration(target)
+                        if is_valid:
+                            targets.append(target)
+                        else:
+                            skipped_targets.append(f"{target.platform_tag}: {reason}")
+                    except Exception as err:
+                        skipped_targets.append(f"Invalid target (py={py_v}, os={os_v}): {err}")
+
+    if not targets:
+        typer.secho("Error: No valid target environments specified.", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+
+    # 2. Run analysis, package mapping, metadata fetching, and compatibility evaluation
+    engine = PyDeps(project_path=project_path, offline=offline)
+    analysis = engine.analyze()
+    package_report = engine.resolve_packages(analysis)
+    metadata = engine.fetch_metadata(package_report, offline=offline)
+    matrix = engine.check_compatibility(metadata=metadata, targets=targets, extra=extra)
+
+    if skipped_targets:
+        matrix.diagnostics.extend(skipped_targets)
+
+    if json_output:
+        typer.echo(matrix.model_dump_json(indent=2))
+        return
+
+    # 3. Human-readable summary
+    typer.secho(f"=== PyDeps Compatibility Matrix: {project_path.name} ===", fg=typer.colors.CYAN)
+    summary = matrix.summary()
+    typer.echo(f"Packages Evaluated:   {summary['total_packages']}")
+    typer.echo(f"Targets Evaluated:    {summary['total_targets']}")
+    typer.echo(f"Total Evaluations:    {summary['total_evaluations']}")
+    typer.secho(f"  Compatible:         {summary['compatible_count']}", fg=typer.colors.GREEN)
+    if summary["incompatible_count"] > 0:
+        typer.secho(f"  Incompatible:       {summary['incompatible_count']}", fg=typer.colors.RED)
+    if summary["unverified_count"] > 0:
+        typer.secho(f"  Unverified:         {summary['unverified_count']}", fg=typer.colors.YELLOW)
+
+    typer.echo("\n--- Matrix Breakdown ---")
+    for pkg in matrix.packages:
+        pkg_results = matrix.matrix.get(pkg, {})
+        typer.secho(f"\nPackage: {pkg}", fg=typer.colors.BRIGHT_WHITE, bold=True)
+        for target_tag, res in pkg_results.items():
+            if res.status == CompatibilityStatus.COMPATIBLE:
+                status_styled = typer.style("COMPATIBLE", fg=typer.colors.GREEN)
+            elif res.status == CompatibilityStatus.INCOMPATIBLE:
+                status_styled = typer.style("INCOMPATIBLE", fg=typer.colors.RED)
+            else:
+                status_styled = typer.style("UNVERIFIED", fg=typer.colors.YELLOW)
+
+            typer.echo(f"  {target_tag:<40} -> {status_styled}")
+            if res.reason:
+                typer.echo(f"    Reason: {res.reason}")
+            if res.wheel_candidates:
+                typer.echo(f"    Compatible Wheels: {', '.join(res.wheel_candidates[:2])}")
+            if res.warnings:
+                for w in res.warnings:
+                    typer.secho(f"    Warning: {w}", fg=typer.colors.YELLOW)
+
+    if matrix.diagnostics:
+        typer.secho("\nDiagnostics & Skipped Targets:", fg=typer.colors.YELLOW)
+        for diag in matrix.diagnostics:
+            typer.echo(f"  - {diag}")
 
 
 if __name__ == "__main__":

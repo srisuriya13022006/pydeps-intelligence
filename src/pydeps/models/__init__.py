@@ -8,7 +8,15 @@ from pydeps.metadata.metadata_models import (
     ReleaseArtifact,
 )
 from pydeps.models.analysis import ImportAnalysisResult
-from pydeps.models.compatibility import CompatibilityResult, CompatibilityStatus
+from pydeps.models.compatibility import (
+    ArtifactCompatibility,
+    CompatibilityMatrix,
+    CompatibilityResult,
+    CompatibilityStatus,
+    MarkerEvaluation,
+    PackageCompatibility,
+    PackageCompatibilityMatrix,
+)
 from pydeps.models.dependencies import Dependency, DependencyType, ResolutionResult
 from pydeps.models.imports import (
     ImportContext,
@@ -36,6 +44,8 @@ from pydeps.models.validation import ValidationResult, ValidationStatus
 __all__ = [
     "AnalysisReport",
     "Architecture",
+    "ArtifactCompatibility",
+    "CompatibilityMatrix",
     "CompatibilityResult",
     "CompatibilityStatus",
     "ConfidenceLevel",
@@ -46,8 +56,11 @@ __all__ = [
     "ImportRecord",
     "ImportType",
     "MappingSource",
+    "MarkerEvaluation",
     "MetadataResult",
     "OperatingSystem",
+    "PackageCompatibility",
+    "PackageCompatibilityMatrix",
     "PackageMapping",
     "PackageMappingResult",
     "PackageRelease",

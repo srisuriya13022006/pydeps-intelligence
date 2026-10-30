@@ -101,6 +101,24 @@ PyDeps is a Python Dependency Intelligence Engine designed to analyze codebases,
   - PyPI client employs bounded exponential backoff retries (maximum 3 attempts) for HTTP 429 and transient 5xx errors; it never retries indefinitely.
   - Dependency metadata (`Requires-Dist`) is parsed into PEP 508 `packaging.requirements.Requirement` representations without premature local environment marker evaluation.
 
+### ADR-010: Target Environment Modeling
+- **Decision:** Explicit target environments are modeled via `TargetEnvironment` and `TargetPlatformProfile`, completely decoupled from the host runtime running PyDeps.
+- **Dimensions Supported:** Python version (e.g. 3.9 through 3.14), operating system (Windows, Linux, macOS), CPU architecture (x86_64, ARM64, etc.), Python implementation (CPython, PyPy), ABI tags, Linux manylinux/musllinux policies, macOS deployment targets, and Windows platform tags.
+- **Host Isolation Rule:** Never silently substitute the host machine's platform configuration for requested target environments. If insufficient information is provided by a profile to evaluate a platform-sensitive condition, report `unverified` rather than guessing or defaulting to host properties.
+
+### ADR-011: Packaging Standards-Based Compatibility
+- **Decision:** Drive all version constraints, marker evaluations, and wheel compatibility checks directly through canonical `packaging` primitives (`packaging.version.Version`, `packaging.specifiers.SpecifierSet`, `packaging.tags`, `packaging.markers.Marker`, `packaging.utils.parse_wheel_filename`).
+- **Wheel Tag Derivation:** Never invoke `packaging.tags.sys_tags()` to evaluate foreign target platforms, as `sys_tags()` exclusively describes the host interpreter. Instead, generate target-compatible wheel tags using explicit target platform profiles parameterized by OS, CPU architecture, implementation, and target Python version.
+- **Marker Evaluation Isolation:** Construct PEP 508 marker evaluation environments exclusively from the target platform profile. Marker variables not supplied by the target configuration are identified via AST inspection and reported as `unverified` rather than allowing fallback to the host's `default_environment()`.
+
+### ADR-012: Static Compatibility Versus Runtime Verification
+- **Decision:** Maintain a strict, unambiguous distinction between static compatibility and runtime buildability.
+- **Prebuilt Wheel vs. Source Distribution:**
+  - A release with a compatible prebuilt wheel (or pure-Python wheel) matching target tags and Python constraints is evaluated as `compatible`.
+  - A release providing only source distributions (`sdist`) cannot be statically guaranteed to build or install, as source builds may require native compilers, C/Fortran/Rust toolchains, system libraries, or dynamic build-backend hooks. Therefore, sdist-only candidates evaluate to `unverified` with explicit diagnostic evidence indicating that runtime validation is required.
+  - A release with conflicting Python constraints or incompatible wheels without sdists evaluates to `incompatible`.
+- **Evidence Semantics:** Every evaluation yields auditable evidence including evaluated Python specifiers, candidate wheel tags, rejected wheel reasons, and marker evaluations. Missing metadata (such as an absent `Requires-Python` header) evaluates to `unverified` rather than being assumed compatible.
+
 ## 4. Component Layout
 
 ```
@@ -121,7 +139,7 @@ PyDeps/
 │       │   ├── mapping.py        # PackageMappingResult, ConfidenceLevel, PackageReport
 │       │   ├── analysis.py       # ImportAnalysisResult aggregate findings
 │       │   ├── dependencies.py   # Dependency, ResolutionResult
-│       │   ├── compatibility.py  # CompatibilityResult, CompatibilityStatus
+│       │   ├── compatibility.py  # CompatibilityResult, Matrix, TargetPlatformProfile
 │       │   ├── validation.py     # ValidationResult, ValidationStatus
 │       │   └── report.py         # AnalysisReport aggregate model
 │       ├── scanner/
@@ -153,9 +171,18 @@ PyDeps/
 │       │   ├── pypi_client.py    # HTTPX client with retries, backoff, and validation
 │       │   ├── metadata_provider.py # High-level metadata service coordinating client and cache
 │       │   └── release_metadata.py# Release files and wheel platform tags helper
+│       ├── compatibility/
+│       │   ├── __init__.py       # Compatibility engine public exports
+│       │   ├── platform_profiles.py # TargetPlatformProfile and target wheel tag generation
+│       │   ├── python_compatibility.py # Requires-Python specifier evaluator
+│       │   ├── marker_evaluator.py # PEP 508 isolated environment marker evaluator
+│       │   ├── wheel_compatibility.py # Wheel filename parser & tag intersection evaluator
+│       │   ├── artifact_evaluator.py # Wheel vs sdist candidate evaluation
+│       │   ├── compatibility_engine.py # Release-level compatibility engine orchestrator
+│       │   └── compatibility_matrix.py # Multi-target, multi-package matrix builder
 │       └── cli/
 │           ├── __init__.py
-│           └── main.py           # Typer CLI application (scan, analyze, map, metadata)
+│           └── main.py           # Typer CLI application (scan, analyze, map, metadata, compatibility)
 ├── tests/
 │   ├── unit/
 │   │   ├── test_config.py        # Config parsing, validation, and defaults
@@ -166,13 +193,20 @@ PyDeps/
 │   │   ├── test_aggregator.py    # Aggregator categorization and deduplication
 │   │   ├── test_mapping.py       # Import-to-distribution mappings, ambiguity, overrides
 │   │   ├── test_metadata_cache.py# Cache eviction, TTL, disk persistence, offline mode
-│   │   └── test_metadata_parser.py# PEP 508 Requires-Dist parsing, artifacts, wheel tags
+│   │   ├── test_metadata_parser.py# PEP 508 Requires-Dist parsing, artifacts, wheel tags
+│   │   ├── test_platform_profiles.py # Platform profiles, wheel tags, and marker envs
+│   │   ├── test_python_compatibility.py # Requires-Python boundaries, compound specifiers
+│   │   ├── test_marker_evaluator.py # PEP 508 marker evaluations and missing field detection
+│   │   ├── test_wheel_compatibility.py # Wheel tag matching (universal, abi3, manylinux, musl)
+│   │   └── test_artifact_evaluator.py # Artifact evaluator, wheel vs sdist, yanked warnings
 │   └── integration/
 │       ├── test_cli.py           # CLI invocation (scan, analyze, map, metadata, errors)
+│       ├── test_cli_compatibility.py # CLI compatibility command tests
 │       ├── test_facade.py        # High-level PyDeps facade end-to-end flow
 │       ├── test_metadata_provider.py # MetadataProvider mocked PyPI integration & caching
 │       ├── test_pipeline.py      # End-to-end multi-package pipeline execution
-│       └── test_pypi_client.py   # PyPIClient HTTP status, rate limit, and retry handling
+│       ├── test_pypi_client.py   # PyPIClient HTTP status, rate limit, and retry handling
+│       └── test_compatibility_matrix.py # Multi-target compatibility matrix and JSON serialization
 ├── docs/
 │   └── architecture.md           # This architecture documentation
 ├── pyproject.toml                # Project metadata, dependencies, tool configs
