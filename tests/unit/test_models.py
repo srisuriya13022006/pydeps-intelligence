@@ -323,9 +323,7 @@ def test_analysis_report_serialization_roundtrip() -> None:
         ],
         resolution_results=ResolutionResult(
             success=True,
-            resolved_dependencies=[
-                Dependency(name="httpx", version_specifier="==0.25.0")
-            ],
+            resolved_dependencies=[Dependency(name="httpx", version_specifier="==0.25.0")],
         ),
         validation_results=[
             ValidationResult(

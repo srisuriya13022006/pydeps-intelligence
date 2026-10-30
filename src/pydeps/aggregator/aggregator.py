@@ -74,14 +74,10 @@ class ImportAggregator:
                     target_python_version,
                 )
                 if stdlib_status is True:
-                    updated = record.model_copy(
-                        update={"import_type": ImportType.STANDARD_LIBRARY}
-                    )
+                    updated = record.model_copy(update={"import_type": ImportType.STANDARD_LIBRARY})
                     stdlib_imports.append(updated)
                 elif stdlib_status is False:
-                    updated = record.model_copy(
-                        update={"import_type": ImportType.THIRD_PARTY}
-                    )
+                    updated = record.model_copy(update={"import_type": ImportType.THIRD_PARTY})
                     external_imports.append(updated)
                 else:
                     # Unverified status for target Python version

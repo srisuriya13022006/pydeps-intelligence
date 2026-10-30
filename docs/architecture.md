@@ -88,6 +88,19 @@ PyDeps is a Python Dependency Intelligence Engine designed to analyze codebases,
 - **Decision:** Standard-library classification is driven by a standalone `StdlibCatalog` parameterized by the target Python version (`target_python_version`), rather than relying exclusively on the running interpreter's `sys.stdlib_module_names`.
 - **Rationale:** A developer running PyDeps on Python 3.11 analyzing a legacy Python 3.8 or future Python 3.13 project must see standard library determinations accurate for that specific target runtime (e.g. `distutils` removed in 3.12, `tomllib` added in 3.11, `zoneinfo` added in 3.9). When a version cannot be conclusively verified, the module is classified as `unverified` with diagnostics rather than guessed.
 
+### ADR-008: Multi-Provider Evidence-Based Distribution Mapping
+- **Decision:** Import-to-distribution resolution uses a prioritized multi-provider chain (`OverrideMappingProvider` -> `DatabaseMappingProvider` -> `InstalledEnvironmentMappingProvider` -> `DirectHeuristicMappingProvider`).
+- **Rationale:** Import names rarely map 1:1 to distribution package names (e.g. `cv2` -> `opencv-python`, `PIL` -> `Pillow`, `yaml` -> `PyYAML`). Local environment inspection (`importlib.metadata.packages_distributions()`) is advisory evidence rather than definitive ground truth because the target project may not be installed in the environment executing PyDeps.
+- **Ambiguity Rule:** When an import maps to multiple distinct distributions (e.g. `cv2`, `crypto`), `PackageMappingResult` reports `is_ambiguous=True` with `selected_distribution=None` and requires explicit user override; it never silently guesses.
+
+### ADR-009: PyPI Metadata Ingestion and Offline-First Two-Tier Caching
+- **Decision:** PyPI metadata retrieval is mediated by `MetadataProvider` combining an in-memory cache and a persistent JSON cache (`pydeps_metadata_v1.json`) with configurable TTL and strict offline mode.
+- **Safety Principles:**
+  - Standard library and local project modules are never queried against PyPI.
+  - Package names are strictly validated against `^[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9]$` to prevent URL path injection.
+  - PyPI client employs bounded exponential backoff retries (maximum 3 attempts) for HTTP 429 and transient 5xx errors; it never retries indefinitely.
+  - Dependency metadata (`Requires-Dist`) is parsed into PEP 508 `packaging.requirements.Requirement` representations without premature local environment marker evaluation.
+
 ## 4. Component Layout
 
 ```
@@ -95,6 +108,8 @@ PyDeps/
 ├── src/
 │   └── pydeps/
 │       ├── __init__.py           # Package version and top-level public API exports
+│       ├── _version.py           # Single source of truth for version string
+│       ├── facade.py             # High-level PyDeps orchestrator class
 │       ├── py.typed              # PEP 561 typing marker
 │       ├── config.py             # Project configuration loader & validator
 │       ├── exceptions.py         # PyDeps domain exception hierarchy
@@ -103,6 +118,7 @@ PyDeps/
 │       │   ├── project.py        # ProjectConfig, TargetEnvironment, and core enums
 │       │   ├── structure.py      # ProjectStructure model for scan results
 │       │   ├── imports.py        # ImportRecord, PackageMapping, ImportContext
+│       │   ├── mapping.py        # PackageMappingResult, ConfidenceLevel, PackageReport
 │       │   ├── analysis.py       # ImportAnalysisResult aggregate findings
 │       │   ├── dependencies.py   # Dependency, ResolutionResult
 │       │   ├── compatibility.py  # CompatibilityResult, CompatibilityStatus
@@ -122,9 +138,24 @@ PyDeps/
 │       ├── aggregator/
 │       │   ├── __init__.py
 │       │   └── aggregator.py     # ImportAggregator for categorized results
+│       ├── registry/
+│       │   ├── __init__.py       # Registry exports
+│       │   ├── package_mapper.py # PackageMapper orchestrating mapping providers
+│       │   ├── mapping_database.py # Bundled curated import-to-distribution table
+│       │   ├── mapping_provider.py # Base and specialized mapping evidence providers
+│       │   ├── mapping_overrides.py# User-configured mapping overrides manager
+│       │   └── mapping_cache.py  # In-memory and disk cache for mapped distributions
+│       ├── metadata/
+│       │   ├── __init__.py       # Metadata exports
+│       │   ├── metadata_models.py# ReleaseArtifact, PackageRelease, MetadataResult
+│       │   ├── metadata_parser.py# PEP 508 requires_dist and wheel artifact parser
+│       │   ├── metadata_cache.py # Two-tier in-memory & persistent disk cache with TTL
+│       │   ├── pypi_client.py    # HTTPX client with retries, backoff, and validation
+│       │   ├── metadata_provider.py # High-level metadata service coordinating client and cache
+│       │   └── release_metadata.py# Release files and wheel platform tags helper
 │       └── cli/
 │           ├── __init__.py
-│           └── main.py           # Typer CLI application (scan, analyze, --version)
+│           └── main.py           # Typer CLI application (scan, analyze, map, metadata)
 ├── tests/
 │   ├── unit/
 │   │   ├── test_config.py        # Config parsing, validation, and defaults
@@ -132,10 +163,16 @@ PyDeps/
 │   │   ├── test_scanner.py       # ProjectScanner discovery and exclusion tests
 │   │   ├── test_analyzer.py      # AST analysis, contexts, and dynamic imports
 │   │   ├── test_classifier.py    # StdlibCatalog version deltas and local module detection
-│   │   └── test_aggregator.py    # Aggregator categorization and deduplication
+│   │   ├── test_aggregator.py    # Aggregator categorization and deduplication
+│   │   ├── test_mapping.py       # Import-to-distribution mappings, ambiguity, overrides
+│   │   ├── test_metadata_cache.py# Cache eviction, TTL, disk persistence, offline mode
+│   │   └── test_metadata_parser.py# PEP 508 Requires-Dist parsing, artifacts, wheel tags
 │   └── integration/
-│       ├── test_cli.py           # CLI invocation (scan, analyze, --json, errors)
-│       └── test_pipeline.py      # End-to-end multi-package pipeline execution
+│       ├── test_cli.py           # CLI invocation (scan, analyze, map, metadata, errors)
+│       ├── test_facade.py        # High-level PyDeps facade end-to-end flow
+│       ├── test_metadata_provider.py # MetadataProvider mocked PyPI integration & caching
+│       ├── test_pipeline.py      # End-to-end multi-package pipeline execution
+│       └── test_pypi_client.py   # PyPIClient HTTP status, rate limit, and retry handling
 ├── docs/
 │   └── architecture.md           # This architecture documentation
 ├── pyproject.toml                # Project metadata, dependencies, tool configs

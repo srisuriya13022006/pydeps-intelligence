@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pydeps._version import __version__
 from pydeps.aggregator import ImportAggregator
 from pydeps.analyzer import ASTImportVisitor, ImportAnalyzer
 from pydeps.classifier import LocalModuleDetector, StdlibCatalog
@@ -14,11 +15,25 @@ from pydeps.exceptions import (
     ResolutionError,
     TargetEnvironmentError,
 )
+from pydeps.facade import PyDeps
+from pydeps.metadata import (
+    MetadataCache,
+    MetadataProvider,
+    MetadataResult,
+    PackageRelease,
+    PyPIClient,
+    PyPIError,
+    PyPINetworkError,
+    PyPINotFoundError,
+    PyPIRateLimitError,
+    ReleaseArtifact,
+)
 from pydeps.models import (
     AnalysisReport,
     Architecture,
     CompatibilityResult,
     CompatibilityStatus,
+    ConfidenceLevel,
     Dependency,
     DependencyType,
     ImportAnalysisResult,
@@ -28,6 +43,8 @@ from pydeps.models import (
     MappingSource,
     OperatingSystem,
     PackageMapping,
+    PackageMappingResult,
+    PackageReport,
     ProjectConfig,
     ProjectInformation,
     ProjectStructure,
@@ -37,11 +54,16 @@ from pydeps.models import (
     ValidationResult,
     ValidationStatus,
 )
+from pydeps.registry import (
+    CURATED_IMPORT_MAPPINGS,
+    MappingDatabase,
+    MappingOverrides,
+    PackageMapper,
+)
 from pydeps.scanner import KNOWN_METADATA_FILES, ProjectScanner
 
-__version__ = "0.1.0"
-
 __all__ = [
+    "CURATED_IMPORT_MAPPINGS",
     "KNOWN_METADATA_FILES",
     "ASTImportVisitor",
     "AnalysisReport",
@@ -49,6 +71,7 @@ __all__ = [
     "CompatibilityError",
     "CompatibilityResult",
     "CompatibilityStatus",
+    "ConfidenceLevel",
     "ConfigError",
     "Dependency",
     "DependencyType",
@@ -60,15 +83,31 @@ __all__ = [
     "ImportRecord",
     "ImportType",
     "LocalModuleDetector",
+    "MappingDatabase",
+    "MappingOverrides",
     "MappingSource",
+    "MetadataCache",
+    "MetadataProvider",
+    "MetadataResult",
     "OperatingSystem",
+    "PackageMapper",
     "PackageMapping",
+    "PackageMappingResult",
+    "PackageRelease",
+    "PackageReport",
     "ProjectConfig",
     "ProjectInformation",
     "ProjectScanner",
     "ProjectStructure",
+    "PyDeps",
     "PyDepsError",
+    "PyPIClient",
+    "PyPIError",
+    "PyPINetworkError",
+    "PyPINotFoundError",
+    "PyPIRateLimitError",
     "PythonImplementation",
+    "ReleaseArtifact",
     "ResolutionError",
     "ResolutionResult",
     "StdlibCatalog",

@@ -109,3 +109,74 @@ def test_cli_analyze_non_existent_path(tmp_path: Path) -> None:
     result = runner.invoke(app, ["analyze", str(bad_path)])
     assert result.exit_code == 1
     assert "does not exist" in result.stderr or "does not exist" in result.stdout
+
+
+def test_cli_analyze_resolve_names(tmp_path: Path) -> None:
+    """Test 'pydeps analyze --resolve-names' displays mapped distributions."""
+    (tmp_path / "app.py").write_text("import yaml\nimport requests\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["analyze", str(tmp_path), "--resolve-names"])
+    assert result.exit_code == 0
+    assert "Resolved Distributions" in result.stdout
+    assert "pyyaml" in result.stdout
+    assert "requests" in result.stdout
+
+
+def test_cli_analyze_resolve_names_json(tmp_path: Path) -> None:
+    """Test 'pydeps analyze --resolve-names --json' produces structured PackageReport."""
+    (tmp_path / "app.py").write_text("import cv2\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["analyze", str(tmp_path), "--resolve-names", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert "mappings" in data
+    assert "selected_distributions" in data
+    assert "ambiguous_imports" in data
+    assert len(data["ambiguous_imports"]) == 1
+    assert data["ambiguous_imports"][0]["import_name"] == "cv2"
+
+
+def test_cli_map_command(tmp_path: Path) -> None:
+    """Test 'pydeps map' maps imports in a project to distribution names."""
+    (tmp_path / "main.py").write_text("import PIL\nimport dotenv\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["map", str(tmp_path)])
+    assert result.exit_code == 0
+    assert "PyDeps Package Mapping" in result.stdout
+    assert "pillow" in result.stdout.lower()
+    assert "python-dotenv" in result.stdout.lower()
+
+
+def test_cli_map_json_output(tmp_path: Path) -> None:
+    """Test 'pydeps map --json' outputs valid PackageReport JSON."""
+    (tmp_path / "main.py").write_text("import sklearn\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["map", str(tmp_path), "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert "mappings" in data
+    assert data["selected_distributions"] == ["scikit-learn"]
+
+
+def test_cli_map_non_existent_path(tmp_path: Path) -> None:
+    """Test 'pydeps map' on missing path returns error code 1."""
+    bad_path = tmp_path / "missing_dir"
+    result = runner.invoke(app, ["map", str(bad_path)])
+    assert result.exit_code == 1
+    assert "does not exist" in result.stderr or "does not exist" in result.stdout
+
+
+def test_cli_metadata_offline_cache_miss() -> None:
+    """Test 'pydeps metadata --offline' on un-cached package exits with 1."""
+    result = runner.invoke(app, ["metadata", "uncached-pkg-xyz", "--offline"])
+    assert result.exit_code == 1
+    assert "Error fetching metadata" in result.stderr or "offline mode is enabled" in result.stderr
+
+
+def test_cli_metadata_offline_json_miss() -> None:
+    """Test 'pydeps metadata --offline --json' on un-cached package exits with 1 and JSON."""
+    result = runner.invoke(app, ["metadata", "uncached-pkg-xyz", "--offline", "--json"])
+    assert result.exit_code == 1
+    data = json.loads(result.stdout)
+    assert data["success"] is False
+    assert data["source"] == "offline_cache_miss"

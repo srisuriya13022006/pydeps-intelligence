@@ -39,6 +39,7 @@ class MappingSource(str, Enum):
     KNOWN_MAPPING = "known_mapping"
     METADATA = "metadata"
     HEURISTIC = "heuristic"
+    OVERRIDE = "override"
 
 
 class ImportRecord(BaseModel):

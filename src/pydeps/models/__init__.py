@@ -1,3 +1,12 @@
+"""Domain data models for PyDeps."""
+
+from __future__ import annotations
+
+from pydeps.metadata.metadata_models import (
+    MetadataResult,
+    PackageRelease,
+    ReleaseArtifact,
+)
 from pydeps.models.analysis import ImportAnalysisResult
 from pydeps.models.compatibility import CompatibilityResult, CompatibilityStatus
 from pydeps.models.dependencies import Dependency, DependencyType, ResolutionResult
@@ -7,6 +16,11 @@ from pydeps.models.imports import (
     ImportType,
     MappingSource,
     PackageMapping,
+)
+from pydeps.models.mapping import (
+    ConfidenceLevel,
+    PackageMappingResult,
+    PackageReport,
 )
 from pydeps.models.project import (
     Architecture,
@@ -24,6 +38,7 @@ __all__ = [
     "Architecture",
     "CompatibilityResult",
     "CompatibilityStatus",
+    "ConfidenceLevel",
     "Dependency",
     "DependencyType",
     "ImportAnalysisResult",
@@ -31,12 +46,17 @@ __all__ = [
     "ImportRecord",
     "ImportType",
     "MappingSource",
+    "MetadataResult",
     "OperatingSystem",
     "PackageMapping",
+    "PackageMappingResult",
+    "PackageRelease",
+    "PackageReport",
     "ProjectConfig",
     "ProjectInformation",
     "ProjectStructure",
     "PythonImplementation",
+    "ReleaseArtifact",
     "ResolutionResult",
     "TargetEnvironment",
     "ValidationResult",
