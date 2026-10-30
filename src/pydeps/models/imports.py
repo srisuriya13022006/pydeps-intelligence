@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ImportType(str, Enum):
@@ -17,6 +18,17 @@ class ImportType(str, Enum):
     CONDITIONAL = "conditional"
     TYPE_CHECKING = "type_checking"
     UNKNOWN = "unknown"
+
+
+class ImportContext(str, Enum):
+    """Syntactic or runtime context where the import was discovered."""
+
+    TOP_LEVEL = "top_level"
+    FUNCTION = "function"
+    CLASS = "class"
+    CONDITIONAL = "conditional"
+    TYPE_CHECKING = "type_checking"
+    TRY_EXCEPT = "try_except"
 
 
 class MappingSource(str, Enum):
@@ -57,6 +69,22 @@ class ImportRecord(BaseModel):
         le=1.0,
         description="Confidence score between 0.0 and 1.0",
     )
+    top_level_package: str | None = Field(
+        default=None,
+        description="Extracted top-level package or root module name",
+    )
+    import_context: ImportContext = Field(
+        default=ImportContext.TOP_LEVEL,
+        description="Context in which the import statement appeared",
+    )
+    is_dynamic: bool = Field(
+        default=False,
+        description="Whether this import was invoked dynamically (__import__, importlib)",
+    )
+    diagnostic: str | None = Field(
+        default=None,
+        description="Diagnostic explanation (e.g. for dynamic or unresolvable imports)",
+    )
 
     @field_validator("module_name")
     @classmethod
@@ -66,6 +94,19 @@ class ImportRecord(BaseModel):
             raise ValueError("module_name must not be empty")
         return trimmed
 
+    @model_validator(mode="before")
+    @classmethod
+    def pre_populate_top_level(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("top_level_package"):
+                mod = data.get("module_name", "")
+                if isinstance(mod, str) and mod:
+                    clean = mod.lstrip(".")
+                    if clean:
+                        data = dict(data)
+                        data["top_level_package"] = clean.split(".")[0]
+        return data
+
 
 class PackageMapping(BaseModel):
     """Mapping between an imported module name and its PyPI distribution name."""
@@ -74,7 +115,7 @@ class PackageMapping(BaseModel):
 
     import_name: str = Field(
         ...,
-        description="The imported module name (e.g., 'yaml', 'PIL', 'cv2')",
+        description="The imported module name (e.g., 'yaml', 'PIL')",
     )
     distribution_name: str = Field(
         ...,

@@ -5,34 +5,42 @@
 PyDeps is a Python Dependency Intelligence Engine designed to analyze codebases, discover package imports, map imports to distributions, verify cross-platform and multi-Python version compatibility, resolve dependencies, and validate runtime safety in isolated environments.
 
 ```
-+-------------------------------------------------------------------+
-|                        Interfaces / Consumers                     |
-|        CLI (Typer)     |   Python API   |   VS Code Extension     |
-+-------------------------------------------------------------------+
-                                  |
-                                  v
-+-------------------------------------------------------------------+
-|                     PyDeps Engine Core (src/pydeps)               |
-|                                                                   |
-|   +-------------------+       +-------------------------------+   |
-|   |  Project Scanner  | ----> |  Import Extraction & Mapping  |   |
-|   +-------------------+       +-------------------------------+   |
-|                                               |                   |
-|                                               v                   |
-|   +-------------------+       +-------------------------------+   |
-|   |  Resolver Service | <---> |  Compatibility Engine         |   |
-|   +-------------------+       +-------------------------------+   |
-|             |                                 |                   |
-|             v                                 v                   |
-|   +-------------------+       +-------------------------------+   |
-|   | Export Generation |       |  Runtime Validation Service   |   |
-|   +-------------------+       +-------------------------------+   |
-+-------------------------------------------------------------------+
++-------------------------------------------------------------------------------+
+|                             Interfaces / Consumers                            |
+|        CLI (Typer)          |      Python API       |    VS Code Extension    |
++-------------------------------------------------------------------------------+
+                                         |
+                                         v
++-------------------------------------------------------------------------------+
+|                         PyDeps Engine Core (src/pydeps)                       |
+|                                                                               |
+|   +-----------------------+           +-----------------------------------+   |
+|   |  Project Scanner      | --------> |  AST Import Analyzer              |   |
+|   |  (Recursive / .ipynb) |           |  (Syntactic / Context Extraction) |   |
+|   +-----------------------+           +-----------------------------------+   |
+|               |                                         |                     |
+|               v                                         v                     |
+|   +-----------------------+           +-----------------------------------+   |
+|   | Local Module Detector | <-------> | Stdlib Catalog (Per Target Ver)   |   |
+|   +-----------------------+           +-----------------------------------+   |
+|               \                                         /                     |
+|                \                                       /                      |
+|                 v                                     v                       |
+|               +-------------------------------------------+                   |
+|               |  Import Aggregator                        |                   |
+|               |  (Categorization & Deduplication)         |                   |
+|               +-------------------------------------------+                   |
+|                                     |                                         |
+|                                     v                                         |
+|               +-------------------------------------------+                   |
+|               |  Compatibility Engine & Resolvers (P2/P3) |                   |
+|               +-------------------------------------------+                   |
++-------------------------------------------------------------------------------+
 ```
 
 ## 2. Core Architectural Principles
 
-1. **Modular Architecture:** Distinct components for configuration, scanning, mapping, compatibility, resolution, and validation.
+1. **Modular Architecture:** Distinct components for configuration, scanning, import analysis, classification, mapping, compatibility, resolution, and validation.
 2. **Strong Typing & Predictable Data Contracts:** Pydantic v2 schemas govern all inputs and outputs.
 3. **Independent and Testable Components:** High cohesion and unit test coverage across all modules without external side effects in test suites.
 4. **No Unnecessary Abstractions:** Straightforward abstractions that match real workflows.
@@ -40,6 +48,7 @@ PyDeps is a Python Dependency Intelligence Engine designed to analyze codebases,
 6. **Explainable Compatibility Decisions:** Every result pairs an explicit status with detailed evidence and reasons.
 7. **Network Isolation:** Any remote operations (PyPI JSON API, wheel inspection) are encapsulated behind abstract service interfaces.
 8. **Host-Independent Target Environments:** Target environments describe arbitrary target systems (OS, architecture, Python version, implementation) without coupling to the host system running PyDeps.
+9. **Zero Code Execution during Static Analysis:** Codebases and Jupyter notebooks are analyzed purely via static token and AST inspection. Analyzed project code or setup scripts are never imported or executed in the host environment.
 
 ## 3. Key Architecture Decisions (ADRs)
 
@@ -70,35 +79,65 @@ PyDeps is a Python Dependency Intelligence Engine designed to analyze codebases,
   - `unverified`: Absence of sufficient conclusive evidence (e.g., pure sdist without declared wheels, missing metadata, or uncontactable registries).
 - **Rationale:** Treating unknown status as compatible leads to broken environments, while treating unknown as incompatible creates false alarms. Explicit tri-state transparency enables confident human and automated triage.
 
+### ADR-006: Pure Static AST Analysis (Zero Code Execution)
+- **Decision:** All source analysis in the engine is performed statically using Python's `ast` parser and JSON cell extraction for Jupyter notebooks.
+- **Rationale:** Analyzing untrusted repositories must never execute top-level statements, side-effects, dynamic code, or setup scripts.
+- **Dynamic Imports:** Statically resolvable literal dynamic imports (`__import__("pkg")`, `importlib.import_module("pkg")`) are recorded with lower confidence, while non-literal dynamic invocations produce diagnostic warnings rather than attempting dynamic evaluation.
+
+### ADR-007: Target-Version Decoupled Standard Library Catalogs
+- **Decision:** Standard-library classification is driven by a standalone `StdlibCatalog` parameterized by the target Python version (`target_python_version`), rather than relying exclusively on the running interpreter's `sys.stdlib_module_names`.
+- **Rationale:** A developer running PyDeps on Python 3.11 analyzing a legacy Python 3.8 or future Python 3.13 project must see standard library determinations accurate for that specific target runtime (e.g. `distutils` removed in 3.12, `tomllib` added in 3.11, `zoneinfo` added in 3.9). When a version cannot be conclusively verified, the module is classified as `unverified` with diagnostics rather than guessed.
+
 ## 4. Component Layout
 
 ```
 PyDeps/
 ├── src/
 │   └── pydeps/
-│       ├── __init__.py           # Package version and top-level exports
+│       ├── __init__.py           # Package version and top-level public API exports
 │       ├── py.typed              # PEP 561 typing marker
 │       ├── config.py             # Project configuration loader & validator
 │       ├── exceptions.py         # PyDeps domain exception hierarchy
 │       ├── models/
 │       │   ├── __init__.py       # Unified model namespace exports
 │       │   ├── project.py        # ProjectConfig, TargetEnvironment, and core enums
-│       │   ├── imports.py        # ImportRecord, PackageMapping
+│       │   ├── structure.py      # ProjectStructure model for scan results
+│       │   ├── imports.py        # ImportRecord, PackageMapping, ImportContext
+│       │   ├── analysis.py       # ImportAnalysisResult aggregate findings
 │       │   ├── dependencies.py   # Dependency, ResolutionResult
 │       │   ├── compatibility.py  # CompatibilityResult, CompatibilityStatus
 │       │   ├── validation.py     # ValidationResult, ValidationStatus
 │       │   └── report.py         # AnalysisReport aggregate model
+│       ├── scanner/
+│       │   ├── __init__.py
+│       │   └── scanner.py        # Recursive ProjectScanner and notebook extractor
+│       ├── analyzer/
+│       │   ├── __init__.py
+│       │   ├── ast_visitor.py    # ASTImportVisitor for syntactic import contexts
+│       │   └── analyzer.py       # ImportAnalyzer engine
+│       ├── classifier/
+│       │   ├── __init__.py
+│       │   ├── stdlib.py         # Target-version aware StdlibCatalog
+│       │   └── local.py          # LocalModuleDetector (src-layout & relative imports)
+│       ├── aggregator/
+│       │   ├── __init__.py
+│       │   └── aggregator.py     # ImportAggregator for categorized results
 │       └── cli/
 │           ├── __init__.py
-│           └── main.py           # Typer CLI application entry point
+│           └── main.py           # Typer CLI application (scan, analyze, --version)
 ├── tests/
 │   ├── unit/
 │   │   ├── test_config.py        # Config parsing, validation, and defaults
-│   │   └── test_models.py        # Model serialization, enums, constraints
+│   │   ├── test_models.py        # Model serialization, enums, constraints
+│   │   ├── test_scanner.py       # ProjectScanner discovery and exclusion tests
+│   │   ├── test_analyzer.py      # AST analysis, contexts, and dynamic imports
+│   │   ├── test_classifier.py    # StdlibCatalog version deltas and local module detection
+│   │   └── test_aggregator.py    # Aggregator categorization and deduplication
 │   └── integration/
-│       └── test_cli.py           # CLI invocation, --help, --version
+│       ├── test_cli.py           # CLI invocation (scan, analyze, --json, errors)
+│       └── test_pipeline.py      # End-to-end multi-package pipeline execution
 ├── docs/
-│   └── architecture.md           # This document
+│   └── architecture.md           # This architecture documentation
 ├── pyproject.toml                # Project metadata, dependencies, tool configs
 ├── README.md                     # Overview, quickstart, and development guide
 └── .gitignore                    # Standard Python/IDE exclusions
