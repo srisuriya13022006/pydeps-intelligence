@@ -149,6 +149,33 @@ PyDeps is a Python Dependency Intelligence Engine designed to analyze codebases,
   - Subprocess commands and error outputs are sanitized to avoid leaking sensitive registry credentials into log files or user reports.
   - Untrusted code execution is prevented: `setup.py` is never run statically, and resolution passes `--no-build` or `--only-binary=:all:` to avoid executing arbitrary third-party build hooks during resolution.
 
+### ADR-017: Disposable Runtime Environment Lifecycle
+- **Context:** Validating dependency resolution requires testing installation and imports without polluting the host Python environment or leaking test artifacts across executions.
+- **Decision:** All validation workflows create short-lived, disposable environments tracked via `EnvironmentManager`. Environments are created with isolated prefixes, tracked in context managers, and unconditionally cleaned up upon completion or interruption (unless explicitly requested to be retained via `--keep-environment`).
+- **Dependency Isolation vs. OS Security Isolation:** A Python virtual environment (`venv`) provides filesystem separation and package namespace isolation only; it is **NOT** an operating-system security sandbox. Code running inside a virtual environment has full user-level permissions to access the host filesystem, network, and process space. Therefore, untrusted code execution must never be permitted on the host under the false assumption that a venv provides security containment.
+
+### ADR-018: Trust-Aware Execution Policy
+- **Context:** Python package installation and module importing can execute arbitrary code (e.g., in `setup.py`, build backends, or package `__init__.py`).
+- **Decision:** PyDeps enforces a four-tier explicit trust policy:
+  1. `static_only`: Default policy when execution authorization is absent. No subprocess execution or package installation is performed.
+  2. `trusted_local`: Local execution on the host system permitted only with explicit user authorization (`--allow-local-execution`). Requires separate authorization for running project tests (`--allow-project-code`).
+  3. `isolated_container`: Hardened container execution using Docker with dropped privileges, read-only root/source mounts, restricted tmpfs, resource limits, and network isolation.
+  4. `remote_runner`: Structured interface for remote CI/CD execution environments.
+- **Principle of Least Privilege:** Source distributions (`sdist`) are disallowed by default during installation validation (`--only-binary=:all:`) to avoid running unvetted build backend code on the host. Project test suites require distinct, opt-in permission.
+
+### ADR-019: Cross-Platform Runtime Runner Capabilities
+- **Context:** Dependency resolution can be calculated statically for foreign architectures and operating systems, but runtime execution must only run on compatible systems.
+- **Decision:** Validation runners implement the `ExecutionRunner` protocol and declare precise platform capabilities (`supported_os`, `supported_arch`, `isolation_level`, `network_support`).
+- **Zero-False-Claims Guarantee:** A runner must strictly reject targets it cannot natively execute. The local runner will never claim validation of foreign OS or CPU architectures. The Docker runner executes Linux container targets only and will reject Windows or macOS targets rather than substituting Linux.
+
+### ADR-020: Runtime Validation Levels and Evidence
+- **Context:** Users require progressive validation confidence ranging from package installation to full functional verification.
+- **Decision:** Validation is structured into three progressive, independently evaluated stages:
+  - **L1 (Installation):** Verifies interpreter availability, creates a disposable environment, installs exact resolved versions (wheel-first), runs `pip check` consistency verification, and captures installed package inventories.
+  - **L2 (Import Smoke Tests):** Tests third-party imports in isolated, per-package subprocesses to catch import-time syntax errors, missing C extensions, or incompatible shared libraries.
+  - **L3 (Project Test Execution):** Executes user-approved project test commands (e.g., `pytest`) under strict timeouts, resource limits, safe environment variable allowlists, and disabled network access.
+- **Evidence Preservation:** Every validation stage preserves execution status (`passed`, `failed`, `partial`, `skipped`, `unsupported`, `unverified`, `timed_out`, `blocked_by_policy`), command logs, sanitized diagnostics, and duration. Results are exported to machine-readable JSON, HTML dashboards, and sanitized log files.
+
 ## 4. Component Layout
 
 ```
@@ -170,7 +197,7 @@ PyDeps/
 │       │   ├── analysis.py       # ImportAnalysisResult aggregate findings
 │       │   ├── dependencies.py   # Dependency, ResolutionRequest, ResolutionResult, ResolvedDependencyGraph
 │       │   ├── compatibility.py  # CompatibilityResult, Matrix, TargetPlatformProfile
-│       │   ├── validation.py     # ValidationResult, ValidationStatus
+│       │   ├── validation.py     # ValidationResult, ValidationStatus, ValidationReport, RunnerCapabilities
 │       │   └── report.py         # AnalysisReport aggregate model
 │       ├── scanner/
 │       │   ├── __init__.py
@@ -222,9 +249,22 @@ PyDeps/
 │       │   ├── lockfile_exporter.py # Safe disk exporter for uv.lock, requirements.txt, resolution.json
 │       │   ├── dependency_resolver.py # Unified resolver backend execution engine
 │       │   └── resolution_orchestrator.py # End-to-end resolution pipeline coordinator
+│       ├── validation/
+│       │   ├── __init__.py       # Validation public exports
+│       │   ├── network_policy.py # Network isolation, environment allowlist, and credential redaction
+│       │   ├── interpreter_discovery.py # Python interpreter discovery and compatibility inspection
+│       │   ├── environment_manager.py # Disposable environment lifecycle and cleanup manager
+│       │   ├── report_generator.py # JSON, HTML report, and sanitized log generation
+│       │   ├── validation_orchestrator.py # Multi-stage validation coordinator
+│       │   └── runners/
+│       │       ├── __init__.py   # Runner exports
+│       │       ├── base.py       # ExecutionRunner protocol/abstract base class
+│       │       ├── local_runner.py # Subprocess local virtual environment runner
+│       │       ├── docker_runner.py # Hardened Linux container runner
+│       │       └── remote_runner.py # Remote CI runner interface
 │       └── cli/
 │           ├── __init__.py
-│           └── main.py           # Typer CLI application (scan, analyze, map, metadata, compatibility, resolve)
+│           └── main.py           # Typer CLI application (scan, analyze, map, metadata, compatibility, resolve, validate)
 ├── tests/
 │   ├── unit/
 │   │   ├── test_config.py        # Config parsing, validation, and defaults
@@ -244,11 +284,17 @@ PyDeps/
 │   │   ├── test_dependency_classifier.py # Import classification, overrides, and ambiguity safety
 │   │   ├── test_constraint_collector.py # Static constraint collection from manifests
 │   │   ├── test_resolution_strategy.py # Strategy mapping to uv and pip flags
-│   │   └── test_conflict_analyzer.py # Normalization of resolver conflicts and diagnostics
+│   │   ├── test_conflict_analyzer.py # Normalization of resolver conflicts and diagnostics
+│   │   ├── test_runner_interface.py # Runner capabilities and foreign platform rejection
+│   │   ├── test_interpreter_discovery.py # Python interpreter discovery and compatibility
+│   │   ├── test_environment_manager.py # Disposable environment lifecycle and cleanup
+│   │   ├── test_network_policy.py # Safe environment allowlist, secret redaction, pip flags
+│   │   └── test_validation_orchestrator.py # Validation orchestrator dry-run, execution, stages
 │   └── integration/
 │       ├── test_cli.py           # CLI invocation (scan, analyze, map, metadata, errors)
 │       ├── test_cli_compatibility.py # CLI compatibility command tests
 │       ├── test_cli_resolve.py   # CLI resolve command tests (universal, per-target, json)
+│       ├── test_cli_validate.py  # CLI validate command tests (dry-run, json, levels)
 │       ├── test_facade.py        # High-level PyDeps facade end-to-end flow
 │       ├── test_metadata_provider.py # MetadataProvider mocked PyPI integration & caching
 │       ├── test_pipeline.py      # End-to-end multi-package pipeline execution
@@ -256,7 +302,10 @@ PyDeps/
 │       ├── test_compatibility_matrix.py # Multi-target compatibility matrix and JSON serialization
 │       ├── test_uv_backend.py    # uv subprocess backend execution and lockfile parsing
 │       ├── test_pip_backend.py   # pip fallback dry-run resolution and foreign platform flags
-│       └── test_resolver_e2e.py  # End-to-end resolution flows (Flask, ML, conflicting, markers)
+│       ├── test_resolver_e2e.py  # End-to-end resolution flows (Flask, ML, conflicting, markers)
+│       ├── test_local_runner.py  # LocalRunner execution, installation, and cleanup
+│       ├── test_docker_runner.py # DockerRunner argument hardening and platform rejection
+│       └── test_validation_security.py # Security authorization, secret redaction, and sdist safety
 ├── docs/
 │   └── architecture.md           # This architecture documentation
 ├── pyproject.toml                # Project metadata, dependencies, tool configs

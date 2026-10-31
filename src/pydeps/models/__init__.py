@@ -52,7 +52,20 @@ from pydeps.models.project import (
 )
 from pydeps.models.report import AnalysisReport, ProjectInformation
 from pydeps.models.structure import ProjectStructure
-from pydeps.models.validation import ValidationResult, ValidationStatus
+from pydeps.models.validation import (
+    EnvironmentInfo,
+    ExecutionPolicy,
+    ImportTestResult,
+    NetworkPolicy,
+    ProjectTestResult,
+    RunnerCapabilities,
+    ValidationReport,
+    ValidationRequest,
+    ValidationResult,
+    ValidationStage,
+    ValidationStageResult,
+    ValidationStatus,
+)
 
 __all__ = [
     "AnalysisReport",
@@ -64,13 +77,17 @@ __all__ = [
     "ConfidenceLevel",
     "Dependency",
     "DependencyType",
+    "EnvironmentInfo",
+    "ExecutionPolicy",
     "ImportAnalysisResult",
     "ImportContext",
     "ImportRecord",
+    "ImportTestResult",
     "ImportType",
     "MappingSource",
     "MarkerEvaluation",
     "MetadataResult",
+    "NetworkPolicy",
     "OperatingSystem",
     "PackageCompatibility",
     "PackageCompatibilityMatrix",
@@ -81,6 +98,7 @@ __all__ = [
     "ProjectConfig",
     "ProjectInformation",
     "ProjectStructure",
+    "ProjectTestResult",
     "PythonImplementation",
     "ReleaseArtifact",
     "ResolutionConflict",
@@ -93,7 +111,12 @@ __all__ = [
     "ResolutionTarget",
     "ResolvedDependencyGraph",
     "ResolvedPackage",
+    "RunnerCapabilities",
     "TargetEnvironment",
+    "ValidationReport",
+    "ValidationRequest",
     "ValidationResult",
+    "ValidationStage",
+    "ValidationStageResult",
     "ValidationStatus",
 ]

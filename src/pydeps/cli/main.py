@@ -833,5 +833,288 @@ def resolve_command(
         raise typer.Exit(code=1)
 
 
+@app.command("validate")
+def validate_command(
+    project_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Path to target project to validate.",
+            exists=False,
+        ),
+    ] = Path("."),
+    resolution: Annotated[
+        Path | None,
+        typer.Option(
+            "--resolution",
+            help="Path to existing resolution JSON file to validate.",
+        ),
+    ] = None,
+    runner: Annotated[
+        str,
+        typer.Option(
+            "--runner",
+            help="Execution runner to use: 'local', 'docker', or 'remote'.",
+        ),
+    ] = "local",
+    level: Annotated[
+        str,
+        typer.Option(
+            "--level",
+            help="Validation depth: 'install', 'imports', or 'project-tests'.",
+        ),
+    ] = "install",
+    target: Annotated[
+        str | None,
+        typer.Option(
+            "--target",
+            help="Target platform specification (e.g. 'windows-x86_64-cpython-py3.11').",
+        ),
+    ] = None,
+    network: Annotated[
+        str,
+        typer.Option(
+            "--network",
+            help=(
+                "Network policy: 'disabled', 'package_download_only', "
+                "'controlled', or 'unrestricted'."
+            ),
+        ),
+    ] = "disabled",
+    timeout: Annotated[
+        int,
+        typer.Option(
+            "--timeout",
+            help="Subprocess and test execution timeout in seconds.",
+        ),
+    ] = 300,
+    memory_limit: Annotated[
+        str | None,
+        typer.Option(
+            "--memory-limit",
+            help="Container memory limit constraint (e.g. '1g', '512m').",
+        ),
+    ] = None,
+    cpu_limit: Annotated[
+        str | None,
+        typer.Option(
+            "--cpu-limit",
+            help="Container CPU quota constraint (e.g. '1.0', '0.5').",
+        ),
+    ] = None,
+    allow_local_execution: Annotated[
+        bool,
+        typer.Option(
+            "--allow-local-execution",
+            help="Explicitly authorize executing code locally on the host machine.",
+        ),
+    ] = False,
+    allow_project_code: Annotated[
+        bool,
+        typer.Option(
+            "--allow-project-code",
+            help="Explicitly authorize running project test suites (L3).",
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Simulate the validation plan without executing commands.",
+        ),
+    ] = False,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Output structured validation report as JSON.",
+        ),
+    ] = False,
+    keep_environment: Annotated[
+        bool,
+        typer.Option(
+            "--keep-environment",
+            help="Preserve created disposable environments for debugging.",
+        ),
+    ] = False,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            help="Directory to save validation.json, validation-report.html, and logs.",
+        ),
+    ] = None,
+) -> None:
+    """Validate resolved dependency solutions inside isolated execution environments."""
+    if not project_path.exists():
+        typer.secho(
+            f"Error: Specified project path does not exist: {project_path}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    import json
+
+    from pydeps.models.dependencies import ResolutionResult
+    from pydeps.models.validation import ExecutionPolicy, NetworkPolicy, ValidationStatus
+
+    analyzer = PyDeps(project_path)
+
+    # Load resolution result if specified or resolve
+    res_obj: ResolutionResult | None = None
+    if resolution:
+        if not resolution.exists():
+            typer.secho(
+                f"Error: Resolution file not found: {resolution}", fg=typer.colors.RED, err=True
+            )
+            raise typer.Exit(code=1)
+        try:
+            raw_data = json.loads(resolution.read_text(encoding="utf-8"))
+            res_obj = ResolutionResult.model_validate(raw_data)
+        except Exception as exc:
+            typer.secho(f"Error reading resolution file: {exc}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1) from exc
+    else:
+        # Run resolution automatically
+        res_obj = analyzer.resolve_dependencies()
+
+    # Parse target if provided
+    target_env: TargetEnvironment | None = None
+    if target:
+        # Parse simple 'os-arch-impl-py' or python version
+        parts = target.split("-")
+        if len(parts) >= 4:
+            target_env = TargetEnvironment(
+                operating_system=OperatingSystem(parts[0]),
+                architecture=Architecture(parts[1]),
+                implementation=PythonImplementation(parts[2]),
+                python_version=parts[3].replace("py", ""),
+            )
+        else:
+            target_env = TargetEnvironment(python_version=target.replace("py", ""))
+
+    # Determine execution policy
+    exec_policy = (
+        ExecutionPolicy.TRUSTED_LOCAL if allow_local_execution else ExecutionPolicy.STATIC_ONLY
+    )
+
+    # Run validation
+    report = analyzer.validate(
+        resolution_result=res_obj,
+        runner=runner,
+        level=level,
+        target=target_env,
+        network=NetworkPolicy(network),
+        execution_policy=exec_policy,
+        timeout=timeout,
+        memory_limit=memory_limit,
+        cpu_limit=cpu_limit,
+        allow_local_execution=allow_local_execution,
+        allow_project_code=allow_project_code,
+        dry_run=dry_run,
+        keep_environment=keep_environment,
+        output_dir=output_dir,
+    )
+
+    if json_output:
+        typer.echo(report.model_dump_json(indent=2))
+        if report.status not in (ValidationStatus.PASSED, ValidationStatus.SUCCESS):
+            raise typer.Exit(code=1)
+        return
+
+    # Rich human-readable display
+    typer.secho(
+        f"\n=== PyDeps Runtime Validation: {project_path.name} ===", fg=typer.colors.CYAN, bold=True
+    )
+    typer.echo(f"Target:          {report.target_environment.platform_tag}")
+    typer.echo(f"Runner:          {report.runner_type} ({report.isolation_level})")
+    typer.echo(f"Trust Policy:    {report.execution_policy.value}")
+    typer.echo(f"Network Policy:  {report.network_policy.value}")
+
+    if report.status in (ValidationStatus.PASSED, ValidationStatus.SUCCESS):
+        typer.secho(
+            f"Status:          PASSED ({report.status.value})", fg=typer.colors.GREEN, bold=True
+        )
+    elif report.status == ValidationStatus.BLOCKED_BY_POLICY:
+        typer.secho(
+            f"Status:          BLOCKED BY POLICY ({report.status.value})",
+            fg=typer.colors.YELLOW,
+            bold=True,
+        )
+    elif report.status == ValidationStatus.UNSUPPORTED:
+        typer.secho(
+            f"Status:          UNSUPPORTED ({report.status.value})",
+            fg=typer.colors.YELLOW,
+            bold=True,
+        )
+    else:
+        typer.secho(
+            f"Status:          FAILED ({report.status.value})", fg=typer.colors.RED, bold=True
+        )
+
+    if report.dry_run_plan:
+        typer.secho("\n--- Dry Run Execution Plan ---", fg=typer.colors.BLUE, bold=True)
+        for k, v in report.dry_run_plan.items():
+            typer.echo(f"  {k}: {v}")
+
+    if report.stages:
+        typer.secho("\n--- Validation Stages ---", fg=typer.colors.CYAN)
+        for s_name, s_res in report.stages.items():
+            s_color = (
+                typer.colors.GREEN
+                if s_res.status in (ValidationStatus.PASSED, ValidationStatus.SUCCESS)
+                else typer.colors.RED
+            )
+            if s_res.status in (ValidationStatus.SKIPPED, ValidationStatus.BLOCKED_BY_POLICY):
+                s_color = typer.colors.YELLOW
+            typer.secho(
+                f"  [{s_name.upper()}] Status: {s_res.status.value} ({s_res.duration_seconds}s)",
+                fg=s_color,
+                bold=True,
+            )
+
+            if s_res.import_results:
+                passed_imps = sum(
+                    1 for i in s_res.import_results if i.status == ValidationStatus.PASSED
+                )
+                total_i = len(s_res.import_results)
+                failed_i = total_i - passed_imps
+                typer.echo(
+                    f"    Tested Imports: {total_i} (Passed: {passed_imps}, Failed: {failed_i})"
+                )
+
+            if s_res.test_result:
+                tr = s_res.test_result
+                typer.echo(
+                    f"    Project Test Suite Exit Code: {tr.exit_code} ({tr.duration_seconds}s)"
+                )
+
+            if s_res.errors:
+                for err in s_res.errors:
+                    typer.secho(f"    Error: {err}", fg=typer.colors.RED)
+
+    if report.installed_packages:
+        typer.echo(
+            f"\nInstalled Package Inventory ({len(report.installed_packages)} packages verified):"
+        )
+        for pkg_name, pkg_ver in sorted(report.installed_packages.items())[:15]:
+            typer.echo(f"  - {pkg_name} == {pkg_ver}")
+        if len(report.installed_packages) > 15:
+            typer.echo(f"  ... and {len(report.installed_packages) - 15} more.")
+
+    if report.diagnostics:
+        typer.secho("\nDiagnostics & Warnings:", fg=typer.colors.YELLOW)
+        for diag in report.diagnostics:
+            typer.echo(f"  - {diag}")
+
+    if report.output_files:
+        typer.secho("\nGenerated Reports & Logs:", fg=typer.colors.GREEN)
+        for out_file in report.output_files:
+            typer.echo(f"  - {out_file}")
+
+    if report.status not in (ValidationStatus.PASSED, ValidationStatus.SUCCESS):
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":
     app()

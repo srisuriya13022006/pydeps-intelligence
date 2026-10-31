@@ -15,9 +15,11 @@ from pydeps.metadata.metadata_provider import MetadataProvider
 from pydeps.models.analysis import ImportAnalysisResult
 from pydeps.models.compatibility import CompatibilityMatrix
 from pydeps.models.dependencies import ResolutionMode, ResolutionResult, ResolutionStrategy
+from pydeps.models.imports import ImportRecord
 from pydeps.models.mapping import PackageReport
 from pydeps.models.project import ProjectConfig, TargetEnvironment
 from pydeps.models.structure import ProjectStructure
+from pydeps.models.validation import ExecutionPolicy, NetworkPolicy, ValidationReport
 from pydeps.registry.package_mapper import PackageMapper
 from pydeps.scanner.scanner import ProjectScanner
 
@@ -188,4 +190,98 @@ class PyDeps:
             output_dir=output_dir,
             upgrade=upgrade,
             upgrade_packages=upgrade_packages,
+        )
+
+    def validate(
+        self,
+        resolution_result: ResolutionResult | None = None,
+        runner: str = "local",
+        level: str = "install",
+        target: TargetEnvironment | None = None,
+        network: NetworkPolicy | str = NetworkPolicy.DISABLED,
+        execution_policy: ExecutionPolicy | str | None = None,
+        timeout: int = 300,
+        memory_limit: str | None = None,
+        cpu_limit: str | None = None,
+        allow_local_execution: bool = False,
+        allow_project_code: bool = False,
+        project_test_command: list[str] | None = None,
+        dry_run: bool = False,
+        keep_environment: bool = False,
+        output_dir: Path | str | None = None,
+        discovered_imports: list[ImportRecord] | None = None,
+    ) -> ValidationReport:
+        """Validate resolved dependencies inside an isolated execution environment."""
+        from pydeps.models.validation import (
+            ExecutionPolicy,
+            NetworkPolicy,
+            ValidationRequest,
+        )
+        from pydeps.validation.validation_orchestrator import ValidationOrchestrator
+
+        if resolution_result is None:
+            resolution_result = self.resolve_dependencies()
+
+        # Determine target environment
+        target_env = target
+        if target_env is None:
+            if resolution_result.target:
+                target_env = resolution_result.target
+            elif runner == "local":
+                import sys
+
+                from pydeps.validation.runners.local_runner import LocalRunner
+
+                host_os = LocalRunner._detect_host_os()
+                host_arch = LocalRunner._detect_host_arch()
+                py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+                target_env = TargetEnvironment(
+                    python_version=py_ver,
+                    operating_system=host_os,
+                    architecture=host_arch,
+                )
+            else:
+                default_targets = self._build_default_targets()
+                target_env = default_targets[0] if default_targets else TargetEnvironment()
+
+        # Normalize policies
+        net_policy = NetworkPolicy(network) if isinstance(network, str) else network
+        if execution_policy is None:
+            exec_policy = (
+                ExecutionPolicy.TRUSTED_LOCAL
+                if allow_local_execution
+                else ExecutionPolicy.STATIC_ONLY
+            )
+        else:
+            exec_policy = (
+                ExecutionPolicy(execution_policy)
+                if isinstance(execution_policy, str)
+                else execution_policy
+            )
+
+        test_cmd = project_test_command or ["pytest"]
+
+        request = ValidationRequest(
+            project_path=self.project_path,
+            target_environment=target_env,
+            runner_type=runner,
+            level=level,
+            execution_policy=exec_policy,
+            network_policy=net_policy,
+            allow_local_execution=allow_local_execution,
+            allow_project_code=allow_project_code,
+            project_test_command=test_cmd,
+            timeout_seconds=timeout,
+            memory_limit=memory_limit,
+            cpu_limit=cpu_limit,
+            dry_run=dry_run,
+            keep_environment=keep_environment,
+            output_directory=Path(output_dir) if output_dir else None,
+        )
+
+        orchestrator = ValidationOrchestrator()
+        return orchestrator.validate(
+            request=request,
+            resolution_result=resolution_result,
+            discovered_imports=discovered_imports,
         )
