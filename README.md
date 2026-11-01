@@ -219,7 +219,7 @@ A Python virtual environment isolates dependencies, **not** system resources. To
 We welcome contributions! To set up a development workspace:
 
 ```bash
-git clone https://github.com/your-org/pydeps-intelligence.git
+git clone https://github.com/srisuriya13022006/pydeps-intelligence.git
 cd pydeps-intelligence
 python -m venv .venv
 source .venv/bin/activate  # Or .venv\Scripts\activate on Windows
