@@ -61,7 +61,9 @@ select = [
     "UP",  # pyupgrade
     "RUF", # ruff-specific rules
 ]
-ignore = []
+ignore = [
+    "E501",  # Line length handled by formatter
+]
 
 [tool.pytest.ini_options]
 minversion = "7.0"

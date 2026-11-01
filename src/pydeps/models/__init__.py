@@ -66,6 +66,13 @@ from pydeps.models.validation import (
     ValidationStageResult,
     ValidationStatus,
 )
+from pydeps.reporting.report_schema import (
+    DependencyHealthStatus,
+    DiagnosticReport,
+    RecommendationItem,
+    RecommendationSeverity,
+    StageStatus,
+)
 
 __all__ = [
     "AnalysisReport",
@@ -76,7 +83,9 @@ __all__ = [
     "CompatibilityStatus",
     "ConfidenceLevel",
     "Dependency",
+    "DependencyHealthStatus",
     "DependencyType",
+    "DiagnosticReport",
     "EnvironmentInfo",
     "ExecutionPolicy",
     "ImportAnalysisResult",
@@ -100,6 +109,8 @@ __all__ = [
     "ProjectStructure",
     "ProjectTestResult",
     "PythonImplementation",
+    "RecommendationItem",
+    "RecommendationSeverity",
     "ReleaseArtifact",
     "ResolutionConflict",
     "ResolutionDiagnostic",
@@ -112,6 +123,7 @@ __all__ = [
     "ResolvedDependencyGraph",
     "ResolvedPackage",
     "RunnerCapabilities",
+    "StageStatus",
     "TargetEnvironment",
     "ValidationReport",
     "ValidationRequest",

@@ -49,6 +49,9 @@ htmlcov/
 *.swp
 *.swo
 
+# PyDeps output artifacts
+pydeps-output/
+
 # OS files
 .DS_Store
 Thumbs.db

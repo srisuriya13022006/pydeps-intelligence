@@ -48,12 +48,55 @@ pip install -e ".[dev]"
 
 ### CLI Usage
 
+#### Unified Diagnosis Pipeline
 ```bash
-# Display general help
-pydeps --help
+# Full project diagnosis (scans source, maps packages, evaluates compatibility, resolves constraints)
+pydeps diagnose ./my_project
 
-# Check version
-pydeps --version
+# Offline mode using cached metadata
+pydeps diagnose ./my_project --offline
+
+# Export self-contained HTML dashboard and JSON reports
+pydeps diagnose ./my_project --output ./pydeps-output
+
+# Machine-readable pure JSON output on stdout (diagnostics sent to stderr)
+pydeps diagnose ./my_project --json > report.json
+
+# Optional isolated runtime validation
+pydeps diagnose ./my_project --validate --runner docker --level imports
+```
+
+#### Dashboard and Report Generation
+```bash
+# Render or re-generate an offline HTML dashboard from an existing JSON report
+pydeps report ./pydeps-output/report.json --output ./pydeps-output/index.html
+```
+
+#### Report Comparison & Regression Detection
+```bash
+# Compare two reports across git branches or time to surface regressions and shifts
+pydeps compare old-report.json new-report.json
+
+# Output pure JSON delta
+pydeps compare old-report.json new-report.json --json
+```
+
+#### Individual Engine Commands
+```bash
+# Source scanning and AST import extraction
+pydeps scan ./my_project
+pydeps analyze ./my_project
+
+# Package mapping and PyPI metadata inspection
+pydeps map ./my_project
+pydeps metadata flask --offline
+
+# Compatibility matrix and dependency resolution
+pydeps compatibility requests --target linux-x86_64-cpython-py3.11
+pydeps resolve ./my_project --mode universal --strategy latest-compatible
+
+# Isolated runtime validation
+pydeps validate ./my_project --runner local --level install --allow-local-execution
 ```
 
 ### Development & Testing

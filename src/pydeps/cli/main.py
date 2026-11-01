@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Annotated
 
@@ -1113,6 +1114,377 @@ def validate_command(
             typer.echo(f"  - {out_file}")
 
     if report.status not in (ValidationStatus.PASSED, ValidationStatus.SUCCESS):
+        raise typer.Exit(code=1)
+
+
+@app.command("diagnose")
+def diagnose_command(
+    project_path: Annotated[
+        Path,
+        typer.Argument(help="Path to target project to diagnose.", exists=True),
+    ] = Path("."),
+    target: Annotated[
+        str | None,
+        typer.Option(
+            "--target", help="Target platform specification (e.g. 'linux-x86_64-cpython-py3.11')."
+        ),
+    ] = None,
+    mode: Annotated[
+        str,
+        typer.Option("--mode", help="Resolution mode: 'universal' or 'per-target'."),
+    ] = "universal",
+    strategy: Annotated[
+        str,
+        typer.Option(
+            "--strategy",
+            help="Resolution strategy: 'latest-compatible', 'fewest-versions', etc.",
+        ),
+    ] = "latest-compatible",
+    backend: Annotated[
+        str,
+        typer.Option("--backend", help="Resolver backend: 'uv' or 'pip'."),
+    ] = "uv",
+    offline: Annotated[
+        bool,
+        typer.Option("--offline", help="Run diagnosis offline using cached metadata."),
+    ] = False,
+    validate: Annotated[
+        bool,
+        typer.Option("--validate", help="Run isolated runtime validation."),
+    ] = False,
+    runner: Annotated[
+        str,
+        typer.Option("--runner", help="Validation runner: 'local', 'docker', or 'remote'."),
+    ] = "local",
+    level: Annotated[
+        str,
+        typer.Option("--level", help="Validation level: 'install', 'imports', or 'project-tests'."),
+    ] = "install",
+    allow_local_execution: Annotated[
+        bool,
+        typer.Option("--allow-local-execution", help="Authorize executing code on local host."),
+    ] = False,
+    allow_project_code: Annotated[
+        bool,
+        typer.Option("--allow-project-code", help="Authorize executing project test code."),
+    ] = False,
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Directory to export HTML dashboard and JSON reports."),
+    ] = None,
+    html_report: Annotated[
+        bool,
+        typer.Option("--html/--no-html", help="Generate HTML dashboard in output directory."),
+    ] = True,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Output pure JSON diagnostic report to stdout."),
+    ] = False,
+) -> None:
+    """Run an end-to-end diagnosis pipeline on a Python project."""
+    from pydeps.reporting.json_renderer import JsonRenderer
+    from pydeps.reporting.report_schema import StageStatus
+
+    target_env: TargetEnvironment | None = None
+    if target:
+        parts = target.split("-")
+        if len(parts) >= 4:
+            target_env = TargetEnvironment(
+                operating_system=OperatingSystem(parts[0]),
+                architecture=Architecture(parts[1]),
+                implementation=PythonImplementation(parts[2]),
+                python_version=parts[3].replace("py", ""),
+            )
+        else:
+            target_env = TargetEnvironment(python_version=target.replace("py", ""))
+
+    engine = PyDeps(project_path=project_path, offline=offline)
+    cli_cmd_str = f"pydeps diagnose {project_path}"
+
+    report = engine.diagnose(
+        targets=[target_env] if target_env else None,
+        mode=mode,
+        strategy=strategy,
+        backend=backend,
+        offline=offline,
+        run_validation=validate,
+        validation_runner=runner,
+        validation_level=level,
+        allow_local_execution=allow_local_execution,
+        allow_project_code=allow_project_code,
+        output_dir=output,
+        export_html=html_report,
+        cli_command=cli_cmd_str,
+    )
+
+    if json_output:
+        sys.stdout.write(JsonRenderer.render(report) + "\n")
+        sys.stdout.flush()
+        if report.overall_status in (StageStatus.FAILED, StageStatus.BLOCKED_BY_POLICY):
+            raise typer.Exit(code=1)
+        return
+
+    # Terminal UI output
+    typer.secho(
+        f"\n=== PyDeps Diagnosis: {report.project_information.name} ===",
+        fg=typer.colors.CYAN,
+        bold=True,
+    )
+    typer.echo(f"Project Path:     {report.project_information.path}")
+    typer.echo(
+        f"Timestamp:        {report.project_information.analysis_timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+    )
+    typer.echo(
+        f"Mode:             {report.resolution.mode} (Backend: {report.resolution.backend}, Strategy: {report.resolution.strategy})"
+    )
+
+    p_fg = typer.colors.GREEN if report.pipeline_status == StageStatus.PASSED else typer.colors.RED
+    if report.pipeline_status in (StageStatus.PARTIAL, StageStatus.UNVERIFIED):
+        p_fg = typer.colors.YELLOW
+
+    h_fg = (
+        typer.colors.GREEN
+        if report.dependency_health_status.value == "healthy"
+        else typer.colors.RED
+    )
+    if report.dependency_health_status.value in ("partial", "unknown"):
+        h_fg = typer.colors.YELLOW
+
+    v_fg = (
+        typer.colors.GREEN
+        if report.runtime_validation_status == StageStatus.PASSED
+        else typer.colors.RED
+    )
+    if report.runtime_validation_status in (StageStatus.SKIPPED, StageStatus.UNVERIFIED):
+        v_fg = typer.colors.WHITE
+    elif report.runtime_validation_status in (StageStatus.PARTIAL, StageStatus.BLOCKED_BY_POLICY):
+        v_fg = typer.colors.YELLOW
+
+    typer.secho(f"Pipeline Status:     {report.pipeline_status.value.upper()}", fg=p_fg, bold=True)
+    typer.secho(
+        f"Dependency Health:   {report.dependency_health_status.value.upper()}", fg=h_fg, bold=True
+    )
+    typer.secho(f"Runtime Validation:  {report.runtime_validation_status.value.upper()}", fg=v_fg)
+
+    # Stage Indicators
+    typer.secho("\n--- Pipeline Stages ---", fg=typer.colors.BLUE, bold=True)
+    for s_name, s_res in report.stage_results.items():
+        s_fg = typer.colors.GREEN if s_res.status == StageStatus.PASSED else typer.colors.RED
+        if s_res.status in (StageStatus.SKIPPED, StageStatus.UNVERIFIED):
+            s_fg = typer.colors.WHITE
+        elif s_res.status in (StageStatus.PARTIAL, StageStatus.BLOCKED_BY_POLICY):
+            s_fg = typer.colors.YELLOW
+        typer.secho(
+            f"  [{s_name.upper():<14}] {s_res.status.value:<12} ({s_res.duration_seconds:.2f}s)",
+            fg=s_fg,
+        )
+
+    # Source & Package Intelligence Summary
+    typer.secho("\n--- Source & Package Intelligence ---", fg=typer.colors.BLUE, bold=True)
+    typer.echo(f"  Python Files Scanned:   {report.source_analysis.total_files}")
+    typer.echo(f"  Imports Discovered:     {report.source_analysis.total_imports}")
+    typer.echo(f"  Standard Library:       {len(report.source_analysis.standard_library)}")
+    typer.echo(f"  Local Project Imports:  {len(report.source_analysis.local_imports)}")
+    typer.echo(f"  External Candidates:    {len(report.source_analysis.external_candidates)}")
+    typer.echo(f"  Mapped Distributions:   {len(report.package_intelligence.mappings)}")
+    if report.package_intelligence.ambiguous_mappings:
+        typer.secho(
+            f"  Ambiguous Mappings:     {len(report.package_intelligence.ambiguous_mappings)}",
+            fg=typer.colors.YELLOW,
+            bold=True,
+        )
+        for imp, cands in sorted(report.package_intelligence.ambiguous_mappings.items()):
+            typer.secho(f"    - {imp} -> {', '.join(cands)}", fg=typer.colors.YELLOW)
+    if report.package_intelligence.unresolved_candidates:
+        typer.secho(
+            f"  Unresolved Candidates:  {len(report.package_intelligence.unresolved_candidates)}",
+            fg=typer.colors.YELLOW,
+        )
+
+    # Compatibility Summary
+    if report.compatibility.matrix:
+        typer.secho("\n--- Cross-Platform Compatibility ---", fg=typer.colors.BLUE, bold=True)
+        typer.echo(f"  Targets Evaluated:      {len(report.compatibility.evaluated_targets)}")
+        typer.echo(f"  Packages Evaluated:     {len(report.compatibility.evaluated_packages)}")
+        typer.echo(f"  Compatible:             {report.compatibility.compatible_count}")
+        typer.echo(f"  Incompatible:           {report.compatibility.incompatible_count}")
+        typer.echo(f"  Unverified:             {report.compatibility.unverified_count}")
+
+    # Resolution Summary
+    if report.resolution.pinned_versions or report.resolution.conflicts:
+        typer.secho("\n--- Dependency Resolution ---", fg=typer.colors.BLUE, bold=True)
+        typer.echo(f"  Direct Dependencies:    {len(report.resolution.direct_packages)}")
+        typer.echo(f"  Transitive Packages:    {len(report.resolution.transitive_packages)}")
+        typer.echo(f"  Total Pinned Packages:  {len(report.resolution.pinned_versions)}")
+        if report.resolution.conflicts:
+            typer.secho(
+                f"  Resolution Conflicts:   {len(report.resolution.conflicts)}",
+                fg=typer.colors.RED,
+                bold=True,
+            )
+            for conf in report.resolution.conflicts:
+                typer.secho(
+                    f"    - {conf.get('package', 'unknown')}: {conf.get('description', '')}",
+                    fg=typer.colors.RED,
+                )
+
+    # Runtime Validation Summary
+    if report.validation.executed:
+        typer.secho("\n--- Runtime Validation ---", fg=typer.colors.BLUE, bold=True)
+        typer.echo(
+            f"  Runner / Isolation:     {report.validation.runner_type} ({report.validation.isolation_level})"
+        )
+        typer.echo(f"  Installed Packages:     {len(report.validation.installed_packages)}")
+        typer.echo(f"  Import Tests:           {len(report.validation.import_results)}")
+        if report.validation.project_test_results:
+            tr = report.validation.project_test_results
+            typer.echo(
+                f"  Project Tests Exit Code: {tr.get('exit_code')} ({tr.get('duration', 0):.2f}s)"
+            )
+
+    # Recommendations
+    if report.recommendations:
+        typer.secho("\n--- Recommendations & Guidance ---", fg=typer.colors.MAGENTA, bold=True)
+        for rec in report.recommendations:
+            rec_fg = (
+                typer.colors.RED
+                if rec.severity.value == "critical"
+                else typer.colors.YELLOW
+                if rec.severity.value == "warning"
+                else typer.colors.BLUE
+            )
+            typer.secho(f"  [{rec.severity.value.upper()}] {rec.title}", fg=rec_fg, bold=True)
+            typer.echo(f"    {rec.description}")
+            if rec.actionable_remedy:
+                typer.secho(f"    Action: {rec.actionable_remedy}", fg=typer.colors.CYAN)
+
+    # Artifacts Export
+    if output:
+        typer.secho(f"\nArtifacts exported to: {output}", fg=typer.colors.GREEN)
+        typer.echo(f"  - {output}/report.json")
+        if html_report:
+            typer.echo(f"  - {output}/index.html")
+
+    if report.overall_status in (StageStatus.FAILED, StageStatus.BLOCKED_BY_POLICY):
+        raise typer.Exit(code=1)
+
+
+@app.command("report")
+def report_command(
+    report_file: Annotated[
+        Path,
+        typer.Argument(help="Path to an existing report.json file.", exists=True),
+    ],
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output HTML file path (default: index.html in report directory).",
+        ),
+    ] = None,
+) -> None:
+    """Generate a self-contained HTML dashboard from an existing JSON diagnostic report."""
+    from pydeps.reporting.html_renderer import HtmlRenderer
+    from pydeps.reporting.report_schema import DiagnosticReport
+
+    try:
+        report = DiagnosticReport.model_validate_json(report_file.read_text(encoding="utf-8"))
+    except Exception as exc:
+        typer.secho(f"Error parsing report JSON: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2) from exc
+
+    target_html = output if output else report_file.parent / "index.html"
+    HtmlRenderer.export_html(report, target_html)
+    typer.secho(f"HTML dashboard generated: {target_html}", fg=typer.colors.GREEN)
+
+
+@app.command("compare")
+def compare_command(
+    report_a: Annotated[
+        Path,
+        typer.Argument(help="Path to baseline report JSON.", exists=True),
+    ],
+    report_b: Annotated[
+        Path,
+        typer.Argument(help="Path to target report JSON.", exists=True),
+    ],
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Output pure JSON comparison report to stdout."),
+    ] = False,
+) -> None:
+    """Compare two diagnostic reports to detect regressions and configuration shifts."""
+    from pydeps.reporting.report_comparison import ReportComparator
+
+    try:
+        comparison = ReportComparator.compare(report_a, report_b)
+    except Exception as exc:
+        typer.secho(f"Error comparing reports: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2) from exc
+
+    if json_output:
+        sys.stdout.write(comparison.model_dump_json(indent=2) + "\n")
+        sys.stdout.flush()
+        if comparison.has_regressions:
+            raise typer.Exit(code=1)
+        return
+
+    typer.secho("\n=== PyDeps Report Comparison ===", fg=typer.colors.CYAN, bold=True)
+    typer.echo(f"Baseline: {report_a} ({comparison.report_a_timestamp})")
+    typer.echo(f"Target:   {report_b} ({comparison.report_b_timestamp})")
+
+    if not comparison.target_environments_match:
+        typer.secho(
+            "\n[NOTICE] Target environments differ between reports!", fg=typer.colors.YELLOW
+        )
+        for diff in comparison.target_differences:
+            typer.echo(f"  - {diff}")
+
+    if comparison.has_regressions:
+        typer.secho("\n[REGRESSION DETECTED]", fg=typer.colors.RED, bold=True)
+    else:
+        typer.secho("\n[NO REGRESSIONS]", fg=typer.colors.GREEN, bold=True)
+
+    if comparison.new_imports:
+        typer.echo(f"\nNew Imports ({len(comparison.new_imports)}):")
+        for imp in comparison.new_imports:
+            typer.echo(f"  + {imp}")
+
+    if comparison.removed_imports:
+        typer.echo(f"\nRemoved Imports ({len(comparison.removed_imports)}):")
+        for imp in comparison.removed_imports:
+            typer.echo(f"  - {imp}")
+
+    if comparison.changed_mappings:
+        typer.echo(f"\nChanged Package Mappings ({len(comparison.changed_mappings)}):")
+        for cm in comparison.changed_mappings:
+            typer.echo(
+                f"  ~ {cm.import_name}: {cm.old_distribution} -> {cm.new_distribution} "
+                f"({cm.old_confidence} -> {cm.new_confidence})"
+            )
+
+    if comparison.version_changes:
+        typer.echo(f"\nResolved Version Changes ({len(comparison.version_changes)}):")
+        for vc in comparison.version_changes:
+            typer.echo(f"  ~ {vc.package}: {vc.old_version} -> {vc.new_version}")
+
+    if comparison.new_compatibility_failures:
+        typer.secho(
+            f"\nNew Compatibility Failures ({len(comparison.new_compatibility_failures)}):",
+            fg=typer.colors.RED,
+        )
+        for cf in comparison.new_compatibility_failures:
+            typer.echo(f"  ! {cf.package} on {cf.target}: {cf.reason}")
+
+    if comparison.new_conflicts:
+        typer.secho(
+            f"\nNew Resolution Conflicts ({len(comparison.new_conflicts)}):", fg=typer.colors.RED
+        )
+        for nc in comparison.new_conflicts:
+            typer.echo(f"  ! {nc.get('package')}: {nc.get('description')}")
+
+    if comparison.has_regressions:
         raise typer.Exit(code=1)
 
 

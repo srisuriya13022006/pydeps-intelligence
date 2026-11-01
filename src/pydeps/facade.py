@@ -21,6 +21,7 @@ from pydeps.models.project import ProjectConfig, TargetEnvironment
 from pydeps.models.structure import ProjectStructure
 from pydeps.models.validation import ExecutionPolicy, NetworkPolicy, ValidationReport
 from pydeps.registry.package_mapper import PackageMapper
+from pydeps.reporting.report_schema import DiagnosticReport
 from pydeps.scanner.scanner import ProjectScanner
 
 
@@ -54,10 +55,22 @@ class PyDeps:
         """Scan project directory and discover source files, notebooks, and metadata."""
         return self.scanner.scan(self.project_path)
 
-    def analyze(self, python_version: str = "3.11") -> ImportAnalysisResult:
+    def analyze(
+        self,
+        structure_or_python_version: ProjectStructure | str | None = None,
+        python_version: str = "3.11",
+    ) -> ImportAnalysisResult:
         """Scan the project and perform static AST import extraction and classification."""
-        structure = self.scan()
-        return self.analyzer.analyze_project(structure, target_python_version=python_version)
+        if isinstance(structure_or_python_version, ProjectStructure):
+            structure = structure_or_python_version
+            target_py = python_version
+        elif isinstance(structure_or_python_version, str):
+            structure = self.scan()
+            target_py = structure_or_python_version
+        else:
+            structure = self.scan()
+            target_py = python_version
+        return self.analyzer.analyze_project(structure, target_python_version=target_py)
 
     def resolve_packages(
         self,
@@ -285,3 +298,230 @@ class PyDeps:
             resolution_result=resolution_result,
             discovered_imports=discovered_imports,
         )
+
+    def diagnose(
+        self,
+        targets: Sequence[TargetEnvironment] | TargetEnvironment | None = None,
+        mode: ResolutionMode | str = ResolutionMode.UNIVERSAL,
+        strategy: ResolutionStrategy | str = ResolutionStrategy.LATEST_COMPATIBLE,
+        backend: str = "uv",
+        offline: bool | None = None,
+        run_validation: bool = False,
+        validation_runner: str = "local",
+        validation_level: str = "install",
+        allow_local_execution: bool = False,
+        allow_project_code: bool = False,
+        output_dir: Path | str | None = None,
+        export_html: bool = True,
+        cli_command: str | None = None,
+    ) -> DiagnosticReport:
+        """Run the end-to-end unified diagnosis pipeline and produce a versioned DiagnosticReport."""
+        import time
+
+        from pydeps.reporting.html_renderer import HtmlRenderer
+        from pydeps.reporting.json_renderer import JsonRenderer
+        from pydeps.reporting.report_builder import ReportBuilder
+        from pydeps.reporting.report_schema import StageStatus
+
+        is_offline = self.offline if offline is None else offline
+        durations: dict[str, float] = {}
+        statuses: dict[str, StageStatus] = {}
+        diagnostics: dict[str, list[str]] = {}
+
+        target_list: list[TargetEnvironment] = []
+        if targets is None:
+            target_list = self._build_default_targets()
+        elif isinstance(targets, TargetEnvironment):
+            target_list = [targets]
+        else:
+            target_list = list(targets)
+
+        # Stage 1: Scan
+        t0 = time.perf_counter()
+        structure: ProjectStructure | None = None
+        try:
+            structure = self.scan()
+            statuses["scan"] = StageStatus.PASSED
+        except Exception as exc:
+            statuses["scan"] = StageStatus.FAILED
+            diagnostics.setdefault("scan", []).append(f"Scanning failed: {exc}")
+        finally:
+            durations["scan"] = time.perf_counter() - t0
+
+        # Stage 2: Imports
+        t0 = time.perf_counter()
+        analysis: ImportAnalysisResult | None = None
+        if structure:
+            try:
+                analysis = self.analyze(structure)
+                statuses["imports"] = StageStatus.PASSED
+            except Exception as exc:
+                statuses["imports"] = StageStatus.FAILED
+                diagnostics.setdefault("imports", []).append(f"Import analysis failed: {exc}")
+            finally:
+                durations["imports"] = time.perf_counter() - t0
+        else:
+            statuses["imports"] = StageStatus.SKIPPED
+
+        # Stage 3: Package Mapping
+        t0 = time.perf_counter()
+        package_report: PackageReport | None = None
+        if analysis:
+            try:
+                package_report = self.resolve_packages(analysis)
+                if package_report.ambiguous_imports:
+                    statuses["mapping"] = StageStatus.PARTIAL
+                    diagnostics.setdefault("mapping", []).append(
+                        f"Identified {len(package_report.ambiguous_imports)} ambiguous import mappings."
+                    )
+                else:
+                    statuses["mapping"] = StageStatus.PASSED
+            except Exception as exc:
+                statuses["mapping"] = StageStatus.FAILED
+                diagnostics.setdefault("mapping", []).append(f"Package mapping failed: {exc}")
+            finally:
+                durations["mapping"] = time.perf_counter() - t0
+        else:
+            statuses["mapping"] = StageStatus.SKIPPED
+
+        # Stage 4: Metadata Retrieval
+        t0 = time.perf_counter()
+        metadata: dict[str, MetadataResult] | None = None
+        if package_report and package_report.selected_distributions:
+            try:
+                metadata = self.fetch_metadata(package_report, offline=is_offline)
+                statuses["metadata"] = StageStatus.PASSED
+            except Exception as exc:
+                statuses["metadata"] = StageStatus.FAILED
+                diagnostics.setdefault("metadata", []).append(f"Metadata retrieval failed: {exc}")
+            finally:
+                durations["metadata"] = time.perf_counter() - t0
+        else:
+            statuses["metadata"] = StageStatus.SKIPPED
+
+        # Stage 5: Compatibility Evaluation
+        t0 = time.perf_counter()
+        compat_matrix: CompatibilityMatrix | None = None
+        if metadata:
+            try:
+                compat_matrix = self.check_compatibility(metadata=metadata, targets=target_list)
+                statuses["compatibility"] = StageStatus.PASSED
+            except Exception as exc:
+                statuses["compatibility"] = StageStatus.FAILED
+                diagnostics.setdefault("compatibility", []).append(
+                    f"Compatibility evaluation failed: {exc}"
+                )
+            finally:
+                durations["compatibility"] = time.perf_counter() - t0
+        else:
+            statuses["compatibility"] = StageStatus.SKIPPED
+
+        # Stage 6: Dependency Resolution
+        t0 = time.perf_counter()
+        resolution_result: ResolutionResult | None = None
+        strat_val = strategy.replace("_", "-") if isinstance(strategy, str) else strategy
+        mode_val = mode.replace("_", "-") if isinstance(mode, str) else mode
+        has_manifests = (
+            (self.project_path / "pyproject.toml").is_file()
+            or (self.project_path / "requirements.txt").is_file()
+            or (self.project_path / "setup.py").is_file()
+        )
+        if package_report and (package_report.selected_distributions or has_manifests):
+            try:
+                resolution_result = self.resolve_dependencies(
+                    package_report=package_report,
+                    analysis=analysis,
+                    metadata=metadata,
+                    mode=mode_val,
+                    strategy=strat_val,
+                    backend=backend,
+                    targets=target_list,
+                    offline=is_offline,
+                )
+                if resolution_result.success:
+                    statuses["resolution"] = StageStatus.PASSED
+                else:
+                    statuses["resolution"] = StageStatus.FAILED
+                    if resolution_result.structured_conflicts:
+                        for sc in resolution_result.structured_conflicts:
+                            diagnostics.setdefault("resolution", []).append(
+                                f"Conflict on '{sc.package_name}': {sc.description}"
+                            )
+                    elif resolution_result.conflicts:
+                        for conf_str in resolution_result.conflicts:
+                            diagnostics.setdefault("resolution", []).append(str(conf_str))
+            except Exception as exc:
+                statuses["resolution"] = StageStatus.FAILED
+                diagnostics.setdefault("resolution", []).append(
+                    f"Dependency resolution failed: {exc}"
+                )
+            finally:
+                durations["resolution"] = time.perf_counter() - t0
+        elif package_report:
+            statuses["resolution"] = StageStatus.PASSED
+            resolution_result = ResolutionResult(
+                success=True,
+                mode=mode_val,
+                strategy=strat_val,
+                backend=backend,
+            )
+            durations["resolution"] = 0.0
+        else:
+            statuses["resolution"] = StageStatus.SKIPPED
+
+        # Stage 7: Runtime Validation (Optional)
+        t0 = time.perf_counter()
+        validation_report: ValidationReport | None = None
+        if run_validation and resolution_result and resolution_result.success:
+            try:
+                validation_report = self.validate(
+                    resolution_result=resolution_result,
+                    runner=validation_runner,
+                    level=validation_level,
+                    allow_local_execution=allow_local_execution,
+                    allow_project_code=allow_project_code,
+                    discovered_imports=analysis.imports if analysis else None,
+                )
+                from pydeps.models.validation import ValidationStatus
+
+                if validation_report.status == ValidationStatus.PASSED:
+                    statuses["validation"] = StageStatus.PASSED
+                elif validation_report.status == ValidationStatus.BLOCKED_BY_POLICY:
+                    statuses["validation"] = StageStatus.BLOCKED_BY_POLICY
+                else:
+                    statuses["validation"] = StageStatus.FAILED
+            except Exception as exc:
+                statuses["validation"] = StageStatus.FAILED
+                diagnostics.setdefault("validation", []).append(f"Runtime validation failed: {exc}")
+            finally:
+                durations["validation"] = time.perf_counter() - t0
+        else:
+            statuses["validation"] = StageStatus.SKIPPED
+
+        # Build comprehensive report
+        builder = ReportBuilder()
+        report = builder.build_report(
+            project_path=self.project_path,
+            config=self.config,
+            structure=structure,
+            analysis=analysis,
+            package_report=package_report,
+            metadata=metadata,
+            compatibility_matrix=compat_matrix,
+            resolution_result=resolution_result,
+            validation_report=validation_report,
+            stage_durations=durations,
+            stage_statuses=statuses,
+            stage_diagnostics=diagnostics,
+            cli_command=cli_command,
+            offline=is_offline,
+        )
+
+        # Artifact export
+        if output_dir:
+            out_path = Path(output_dir)
+            JsonRenderer.export_artifacts(report, out_path)
+            if export_html:
+                HtmlRenderer.export_html(report, out_path / "index.html")
+
+        return report

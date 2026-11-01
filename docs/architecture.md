@@ -176,6 +176,21 @@ PyDeps is a Python Dependency Intelligence Engine designed to analyze codebases,
   - **L3 (Project Test Execution):** Executes user-approved project test commands (e.g., `pytest`) under strict timeouts, resource limits, safe environment variable allowlists, and disabled network access.
 - **Evidence Preservation:** Every validation stage preserves execution status (`passed`, `failed`, `partial`, `skipped`, `unsupported`, `unverified`, `timed_out`, `blocked_by_policy`), command logs, sanitized diagnostics, and duration. Results are exported to machine-readable JSON, HTML dashboards, and sanitized log files.
 
+### ADR-021: Unified Diagnostic Pipeline and Partial Results
+- **Context:** Developers need a cohesive command (`pydeps diagnose`) that sequentially executes scanning, import extraction, package mapping, metadata retrieval, cross-platform compatibility matrix evaluation, dependency resolution, optional runtime validation, and report export without halting completely if an intermediate stage fails or warnings occur.
+- **Decision:** `PyDeps.diagnose()` coordinates all pipeline stages with per-stage timing, exception isolation, and structured diagnostics preservation. If any stage encounters an issue (e.g., PyPI rate limit, ambiguous mapping, or resolver conflict), the pipeline retains all prior stage artifacts, marks the affected stage status (`failed`, `partial`, `blocked_by_policy`), and continues downstream reporting. Missing or failed stages are never converted into false successes.
+
+### ADR-022: Self-Contained Offline Dashboard Architecture
+- **Context:** Enterprise security policies and air-gapped CI/CD environments prohibit external CDN downloads, tracking pixels, or remote analytics scripts when inspecting reports. Furthermore, untrusted project strings could lead to stored XSS vulnerabilities.
+- **Decision:** The HTML dashboard (`index.html`) is 100% self-contained and offline-capable:
+  - System font fallbacks and embedded modern SVG/CSS styling provide premium dark/light mode visuals with zero external font or script CDN requests.
+  - All project strings, package names, version constraints, and error messages are strictly escaped using standard HTML escaping before injection.
+  - Dependency graphs and compatibility matrices are rendered through declarative SVG and responsive HTML tables without executing untrusted external scripts.
+
+### ADR-023: Versioned Diagnostic Schema and Regression Comparison
+- **Context:** Automation tooling, CI pipelines, and developers comparing reports across Git branches need a stable, versioned schema and deterministic delta analysis.
+- **Decision:** All JSON reports adhere to versioned schema `1.0.0` (`DiagnosticReport`). The `pydeps compare` engine compares two reports to surface newly discovered imports, removed imports, package mapping shifts, version changes, new conflicts, and compatibility regressions. Crucially, the comparator distinguishes actual code regressions from differences caused by changed target environments or analysis configurations.
+
 ## 4. Component Layout
 
 ```
@@ -262,9 +277,16 @@ PyDeps/
 │       │       ├── local_runner.py # Subprocess local virtual environment runner
 │       │       ├── docker_runner.py # Hardened Linux container runner
 │       │       └── remote_runner.py # Remote CI runner interface
+│       ├── reporting/
+│       │   ├── __init__.py       # Reporting module exports
+│       │   ├── report_schema.py  # Versioned DiagnosticReport and section schemas
+│       │   ├── report_builder.py # Evidence-backed report builder and recommendations
+│       │   ├── json_renderer.py  # JSON serialization and stage artifact exporter
+│       │   ├── html_renderer.py  # Self-contained offline HTML dashboard renderer
+│       │   └── report_comparison.py # Multi-report regression and delta comparator
 │       └── cli/
 │           ├── __init__.py
-│           └── main.py           # Typer CLI application (scan, analyze, map, metadata, compatibility, resolve, validate)
+│           └── main.py           # Typer CLI application (diagnose, report, compare, scan, analyze, map, etc.)
 ├── tests/
 │   ├── unit/
 │   │   ├── test_config.py        # Config parsing, validation, and defaults
@@ -289,12 +311,17 @@ PyDeps/
 │   │   ├── test_interpreter_discovery.py # Python interpreter discovery and compatibility
 │   │   ├── test_environment_manager.py # Disposable environment lifecycle and cleanup
 │   │   ├── test_network_policy.py # Safe environment allowlist, secret redaction, pip flags
-│   │   └── test_validation_orchestrator.py # Validation orchestrator dry-run, execution, stages
+│   │   ├── test_validation_orchestrator.py # Validation orchestrator dry-run, execution, stages
+│   │   ├── test_report_schema.py # Versioned JSON report schema and StageStatus validation
+│   │   ├── test_report_builder.py # Evidence-backed recommendations and partial stage handling
+│   │   ├── test_report_comparison.py # Report delta and regression detection
+│   │   └── test_html_renderer.py # Self-contained HTML dashboard, themes, and XSS sanitization
 │   └── integration/
 │       ├── test_cli.py           # CLI invocation (scan, analyze, map, metadata, errors)
 │       ├── test_cli_compatibility.py # CLI compatibility command tests
 │       ├── test_cli_resolve.py   # CLI resolve command tests (universal, per-target, json)
 │       ├── test_cli_validate.py  # CLI validate command tests (dry-run, json, levels)
+│       ├── test_cli_diagnose.py  # CLI diagnose, report, compare, exit codes, pure JSON stdout
 │       ├── test_facade.py        # High-level PyDeps facade end-to-end flow
 │       ├── test_metadata_provider.py # MetadataProvider mocked PyPI integration & caching
 │       ├── test_pipeline.py      # End-to-end multi-package pipeline execution
