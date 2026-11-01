@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -17,11 +18,12 @@ def test_cli_help() -> None:
     """Test 'pydeps --help' displays usage, options, and returns 0."""
     result = runner.invoke(app, ["--help"], color=False)
     assert result.exit_code == 0
-    assert "PyDeps" in result.stdout
-    assert "--help" in result.stdout
-    assert "--version" in result.stdout
-    assert "scan" in result.stdout
-    assert "analyze" in result.stdout
+    clean = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", result.stdout)
+    assert "PyDeps" in clean
+    assert "--help" in clean
+    assert "--version" in clean
+    assert "scan" in clean
+    assert "analyze" in clean
 
 
 def test_cli_version_flag() -> None:
@@ -41,7 +43,8 @@ def test_cli_version_short_flag() -> None:
 def test_cli_no_args_shows_help() -> None:
     """Test invoking pydeps without arguments displays help."""
     result = runner.invoke(app, [])
-    assert "PyDeps" in result.stdout or "--help" in result.stdout
+    clean = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", result.stdout)
+    assert "PyDeps" in clean or "--help" in clean
 
 
 def test_cli_scan_command(tmp_path: Path) -> None:

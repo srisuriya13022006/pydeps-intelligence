@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -17,10 +18,11 @@ def test_cli_resolve_help() -> None:
     """Test displaying help message for pydeps resolve."""
     result = runner.invoke(app, ["resolve", "--help"], color=False)
     assert result.exit_code == 0
-    assert "Resolve direct and transitive dependencies" in result.stdout
-    assert "--mode" in result.stdout
-    assert "--backend" in result.stdout
-    assert "--strategy" in result.stdout
+    clean = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", result.stdout)
+    assert "Resolve direct and transitive dependencies" in clean
+    assert "--mode" in clean
+    assert "--backend" in clean
+    assert "--strategy" in clean
 
 
 def test_cli_resolve_nonexistent_path() -> None:
