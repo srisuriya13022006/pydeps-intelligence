@@ -14,7 +14,9 @@ from pydeps_intelligence.exceptions import PyDepsError
 
 # PEP 508 valid distribution name pattern
 PACKAGE_NAME_REGEX = re.compile(r"^([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9._-]*[A-Za-z0-9])$")
-DEFAULT_USER_AGENT = f"PyDeps/{__version__} (+https://github.com/your-org/PyDeps)"
+DEFAULT_USER_AGENT = (
+    f"PyDeps/{__version__} (+https://github.com/srisuriya13022006/pydeps-intelligence)"
+)
 DEFAULT_TIMEOUT_SECONDS = 10.0
 MAX_RETRIES = 3
 BACKOFF_FACTOR = 0.5
