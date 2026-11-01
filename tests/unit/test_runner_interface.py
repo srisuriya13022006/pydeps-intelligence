@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import platform
 
-from pydeps.models.project import (
+from pydeps_intelligence.models.project import (
     Architecture,
     OperatingSystem,
     TargetEnvironment,
 )
-from pydeps.validation.interpreter_discovery import DiscoveredInterpreter, InterpreterDiscovery
-from pydeps.validation.runners.docker_runner import DockerRunner
-from pydeps.validation.runners.local_runner import LocalRunner
-from pydeps.validation.runners.remote_runner import RemoteRunner
+from pydeps_intelligence.validation.interpreter_discovery import (
+    DiscoveredInterpreter,
+    InterpreterDiscovery,
+)
+from pydeps_intelligence.validation.runners.docker_runner import DockerRunner
+from pydeps_intelligence.validation.runners.local_runner import LocalRunner
+from pydeps_intelligence.validation.runners.remote_runner import RemoteRunner
 
 
 class FakeInterpreterDiscovery(InterpreterDiscovery):

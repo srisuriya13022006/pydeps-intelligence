@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydeps.resolver.conflict_analyzer import ConflictAnalyzer
+from pydeps_intelligence.resolver.conflict_analyzer import ConflictAnalyzer
 
 
 def test_conflict_analyzer_uv_version_incompatibility() -> None:

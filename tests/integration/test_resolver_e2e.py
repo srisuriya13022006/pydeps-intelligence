@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from pydeps.facade import PyDeps
-from pydeps.models.dependencies import ResolutionMode, ResolutionStatus
-from pydeps.models.project import Architecture, OperatingSystem, TargetEnvironment
+from pydeps_intelligence.facade import PyDeps
+from pydeps_intelligence.models.dependencies import ResolutionMode, ResolutionStatus
+from pydeps_intelligence.models.project import Architecture, OperatingSystem, TargetEnvironment
 
 MOCK_FLASK_UV_LOCK = """version = 1
 requires-python = ">=3.9"
@@ -36,7 +36,7 @@ def test_e2e_flask_project(tmp_path: Path) -> None:
 
     engine = PyDeps(project_path=tmp_path)
 
-    with patch("pydeps.resolver.uv_backend.UvBackend.find_uv", return_value="uv"):
+    with patch("pydeps_intelligence.resolver.uv_backend.UvBackend.find_uv", return_value="uv"):
 
         def mock_run(cmd, cwd=None, *args, **kwargs):
             mock = MagicMock()
@@ -70,7 +70,7 @@ def test_e2e_test_only_imports(tmp_path: Path) -> None:
 
     engine = PyDeps(project_path=tmp_path)
 
-    with patch("pydeps.resolver.uv_backend.UvBackend.find_uv", return_value="uv"):
+    with patch("pydeps_intelligence.resolver.uv_backend.UvBackend.find_uv", return_value="uv"):
 
         def mock_run(cmd, cwd=None, *args, **kwargs):
             mock = MagicMock()
@@ -110,7 +110,7 @@ def test_e2e_conflicting_constraints(tmp_path: Path) -> None:
 
     engine = PyDeps(project_path=tmp_path)
 
-    with patch("pydeps.resolver.uv_backend.UvBackend.find_uv", return_value="uv"):
+    with patch("pydeps_intelligence.resolver.uv_backend.UvBackend.find_uv", return_value="uv"):
         mock_proc = MagicMock()
         mock_proc.returncode = 1
         mock_proc.stderr = (
@@ -144,7 +144,7 @@ def test_e2e_per_target_windows_linux(tmp_path: Path) -> None:
 
     engine = PyDeps(project_path=tmp_path)
 
-    with patch("pydeps.resolver.uv_backend.UvBackend.find_uv", return_value="uv"):
+    with patch("pydeps_intelligence.resolver.uv_backend.UvBackend.find_uv", return_value="uv"):
 
         def mock_run(cmd, *args, **kwargs):
             # Inspect output path

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydeps.classifier import LocalModuleDetector, StdlibCatalog
-from pydeps.models.structure import ProjectStructure
+from pydeps_intelligence.classifier import LocalModuleDetector, StdlibCatalog
+from pydeps_intelligence.models.structure import ProjectStructure
 
 
 def test_stdlib_catalog_core_modules() -> None:

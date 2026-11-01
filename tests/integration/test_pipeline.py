@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pydeps import ImportAnalyzer, ProjectScanner
+from pydeps_intelligence import ImportAnalyzer, ProjectScanner
 
 
 def test_full_pipeline_on_realistic_src_layout(tmp_path: Path) -> None:

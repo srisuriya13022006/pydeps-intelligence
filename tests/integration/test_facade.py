@@ -5,8 +5,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pydeps.facade import PyDeps
-from pydeps.metadata.pypi_client import PyPIClient
+from pydeps_intelligence.facade import PyDeps
+from pydeps_intelligence.metadata.pypi_client import PyPIClient
 
 
 @pytest.fixture

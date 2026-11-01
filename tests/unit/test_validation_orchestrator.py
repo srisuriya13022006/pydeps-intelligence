@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from pydeps.models.dependencies import (
+from pydeps_intelligence.models.dependencies import (
     ResolutionMode,
     ResolutionResult,
     ResolutionStatus,
@@ -13,15 +13,15 @@ from pydeps.models.dependencies import (
     ResolvedDependencyGraph,
     ResolvedPackage,
 )
-from pydeps.models.project import Architecture, OperatingSystem, TargetEnvironment
-from pydeps.models.validation import (
+from pydeps_intelligence.models.project import Architecture, OperatingSystem, TargetEnvironment
+from pydeps_intelligence.models.validation import (
     EnvironmentInfo,
     ExecutionPolicy,
     ValidationRequest,
     ValidationStatus,
 )
-from pydeps.validation.runners.base import ExecutionRunner
-from pydeps.validation.validation_orchestrator import ValidationOrchestrator
+from pydeps_intelligence.validation.runners.base import ExecutionRunner
+from pydeps_intelligence.validation.validation_orchestrator import ValidationOrchestrator
 
 
 def test_orchestrator_blocks_local_execution_without_authorization(tmp_path: Path) -> None:

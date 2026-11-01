@@ -7,7 +7,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from pydeps.cli.main import app
+from pydeps_intelligence.cli.main import app
 
 cli_runner = CliRunner()
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydeps.reporting.html_renderer import HtmlRenderer
-from pydeps.reporting.report_schema import (
+from pydeps_intelligence.reporting.html_renderer import HtmlRenderer
+from pydeps_intelligence.reporting.report_schema import (
     CompatibilitySection,
     DiagnosticReport,
     ExecutionEnvironmentInfo,
@@ -168,7 +168,7 @@ def test_html_renderer_displays_separate_statuses() -> None:
 
 def test_html_renderer_large_graph_fallback() -> None:
     """Small graphs must render SVG; large graphs (>35 nodes) must render the fallback message."""
-    from pydeps.reporting.report_schema import ResolutionSection
+    from pydeps_intelligence.reporting.report_schema import ResolutionSection
 
     # Small graph
     small_sec = ResolutionSection(

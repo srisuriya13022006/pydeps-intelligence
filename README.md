@@ -1,114 +1,239 @@
-# PyDeps
+# PyDeps Intelligence
 
-> A Python Dependency Intelligence Engine
+[![PyPI Version](https://img.shields.io/pypi/v/pydeps-intelligence.svg)](https://pypi.org/project/pydeps-intelligence/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/pydeps-intelligence.svg)](https://pypi.org/project/pydeps-intelligence/)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-PyDeps analyzes Python projects, discovers dependencies, evaluates compatibility across multiple Python versions and operating systems, resolves dependency constraints, validates dependencies inside isolated environments, and generates reproducible dependency files.
+**PyDeps Intelligence** is a comprehensive, deterministic Python dependency intelligence engine. It statically analyzes source repositories, discovers imports, maps modules to canonical PyPI packages, evaluates cross-platform compatibility across operating systems and Python versions, resolves dependency constraint graphs, and safely validates environments inside isolated runners.
 
-## Product Vision
+---
 
-PyDeps serves as a unified core engine for dependency intelligence, designed to power:
-- **Core Engine:** Python package (`pydeps`) providing data contracts, static analysis, compatibility checking, and resolution.
-- **Command-Line Interface:** Standalone CLI (`pydeps`) for developer workflows and CI/CD pipelines.
-- **IDE Extensions:** Direct integration into editor environments (e.g., VS Code extension).
+## The Problem
 
-PyDeps runs on Python 3.10+ while independently supporting analysis of target projects that run on older Python versions.
+Modern Python projects struggle with opaque, fragile dependency lifecycles:
+- **Undeclared Imports:** Developers import external packages in code that are omitted from `pyproject.toml` or `requirements.txt`.
+- **Import vs. Distribution Ambiguity:** Code imports `cv2`, `PIL`, or `yaml`, which do not match their canonical PyPI distribution names (`opencv-python`, `Pillow`, `PyYAML`).
+- **Cross-Platform Incompatibilities:** A package installs cleanly on macOS x86_64, but wheel artifacts or C-extensions fail on Windows or Linux ARM64.
+- **Transitive Conflicts:** Resolvers fail late or silently introduce incompatible transitive constraints.
+- **Execution Risks:** Testing dependencies often triggers arbitrary setup scripts (`setup.py`) or untrusted module execution directly on the developer's workstation.
 
-## Architectural Principles
+PyDeps Intelligence solves these issues by unifying static AST inspection, curated mapping databases, deterministic compatibility matrix evaluation, multi-backend dependency resolution, and policy-governed runtime validation.
 
-1. **Modular Architecture:** Clear separation of responsibilities between scanning, mapping, compatibility, resolution, and validation.
-2. **Strong Typing & Predictable Contracts:** Pydantic v2 models define explicit schemas for all internal and external communication.
-3. **Independent & Testable Components:** High cohesion, loose coupling, comprehensive unit and integration tests.
-4. **No Unnecessary Abstractions:** Direct, clean interfaces without speculative over-engineering.
-5. **No Hardcoded Compatibility Assumptions:** Dynamic evaluation using package metadata, PyPI wheel tags, and environment markers.
-6. **Explainable Decisions:** Every compatibility and resolution outcome is backed by auditable evidence and clear reasons.
-7. **Isolated Network Operations:** Network accesses are isolated behind dedicated service interfaces.
-8. **Safe Runtime Validation:** Untrusted project code is never executed in the developer's host environment.
+---
 
-## Quick Start (P0)
+## Key Capabilities
 
-### Installation
+1. **Deterministic Source Intelligence (AST)**: Recursively scans `.py` files and Jupyter notebooks (`.ipynb`) without executing user code. Classifies imports into standard library, local project modules, and external candidates.
+2. **Package Intelligence & PyPI Mapping**: Bridges import names to PyPI distributions using curated disambiguation heuristics, confidence tiers, and local override configuration.
+3. **Cross-Platform Compatibility Matrix**: Statically evaluates package releases against target combinations of Python versions (3.8–3.13+), operating systems (Linux, macOS, Windows), CPU architectures (x86_64, aarch64, arm64), and Python implementations (CPython, PyPy).
+4. **Dependency Resolution Engine**: Supports multi-platform universal resolution and per-target resolution with backends including `uv` and `pip`, detecting conflicts, extras, and environment markers.
+5. **Environment Isolation & Safe Runtime Validation**: Multi-tier validation (L1: package installation, L2: import smoke tests, L3: authorized project test suites) with sandboxed runners (`docker`, disposable local virtual environments, and remote execution stubs). Untrusted execution is strictly blocked by default.
+6. **Unified Diagnosis & Offline Dashboards**: Exports comprehensive, schema-versioned JSON reports (`report.json`) and 100% self-contained, offline HTML dashboards with interactive dark/light modes, SVG dependency graphs, and developer guidance.
+7. **Report Regression Comparison**: Diffs diagnostic runs across Git branches or CI pipelines to catch compatibility regressions, version drifts, and newly introduced conflicts.
 
-PyDeps requires Python 3.10 or later:
+---
+
+## Installation
+
+Install PyDeps Intelligence from PyPI:
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/PyDeps.git
-cd PyDeps
+pip install pydeps-intelligence
+```
 
-# Create and activate a virtual environment
+For development and testing:
+
+```bash
+pip install pydeps-intelligence[dev]
+```
+
+Verify the installation:
+
+```bash
+pydeps-intel --help
+```
+
+---
+
+## Quick Start
+
+### 1. Unified Diagnosis Pipeline
+
+Diagnose any Python project root with a single command:
+
+```bash
+pydeps-intel diagnose ./my-project
+```
+
+Generate self-contained HTML and JSON reports:
+
+```bash
+pydeps-intel diagnose ./my-project --output ./pydeps-output
+```
+
+Run in 100% offline mode using local caches:
+
+```bash
+pydeps-intel diagnose ./my-project --offline
+```
+
+Stream pure, machine-readable JSON to stdout:
+
+```bash
+pydeps-intel diagnose ./my-project --json > report.json
+```
+
+---
+
+## Command-Line Usage
+
+### Source Scanning & Import Analysis
+
+```bash
+# Discover Python source files, notebooks, and metadata files
+pydeps-intel scan ./my-project
+
+# Extract and classify all imports (stdlib, local, external)
+pydeps-intel analyze ./my-project
+```
+
+### Package Intelligence & Metadata
+
+```bash
+# Map discovered imports to PyPI distribution names
+pydeps-intel map ./my-project
+
+# Fetch and inspect release metadata from PyPI
+pydeps-intel metadata httpx
+```
+
+### Compatibility Matrix
+
+```bash
+# Evaluate package compatibility across target platforms
+pydeps-intel compatibility requests --target linux-x86_64-cpython-py3.11 --target win_amd64-cpython-py3.12
+```
+
+### Dependency Resolution
+
+```bash
+# Universal resolution across all platforms
+pydeps-intel resolve ./my-project --mode universal --strategy latest-compatible
+
+# Export reproducible requirements lockfile
+pydeps-intel resolve ./my-project --output-file requirements.lock
+```
+
+### Runtime Validation
+
+```bash
+# Perform disposable virtualenv installation smoke test (requires explicit authorization)
+pydeps-intel validate ./my-project --runner local --level install --allow-local-execution
+
+# Run validation in Docker container
+pydeps-intel validate ./my-project --runner docker --level imports
+```
+
+### Report Operations & Comparisons
+
+```bash
+# Render offline HTML dashboard from an existing JSON report
+pydeps-intel report ./pydeps-output/report.json --output ./pydeps-output/index.html
+
+# Detect regressions and configuration shifts between runs
+pydeps-intel compare baseline-report.json candidate-report.json
+```
+
+---
+
+## Python API
+
+You can embed PyDeps Intelligence directly into your Python tools, linters, or CI scripts:
+
+```python
+from pydeps_intelligence import PyDeps, TargetEnvironment, OperatingSystem, Architecture
+
+# Initialize engine coordinator
+engine = PyDeps(project_path=".")
+
+# Run end-to-end diagnosis
+report = engine.diagnose(
+    universal=True,
+    backend="uv",
+    strategy="latest-compatible",
+    offline=False,
+)
+
+print(f"Pipeline Status:    {report.pipeline_status.value}")
+print(f"Dependency Health:  {report.dependency_health_status.value}")
+print(f"Validation Status:  {report.runtime_validation_status.value}")
+
+for rec in report.recommendations:
+    print(f"[{rec.severity.value.upper()}] {rec.title}: {rec.description}")
+```
+
+---
+
+## Configuration
+
+PyDeps Intelligence can be configured via `pyproject.toml` (`[tool.pydeps_intelligence]`) or a dedicated `pydeps-intel.toml` file:
+
+```toml
+[tool.pydeps_intelligence]
+target_python_versions = ["3.10", "3.11", "3.12"]
+target_operating_systems = ["linux", "windows", "macos"]
+target_architectures = ["x86_64", "arm64"]
+validate_runtime = false
+output_directory = "./pydeps-output"
+excluded_directories = [".git", ".venv", "tests/fixtures"]
+
+[tool.pydeps_intelligence.overrides]
+# Explicit overrides for custom or internal packages
+my_custom_module = "my-internal-distribution"
+```
+
+---
+
+## Supported Environments
+
+- **Host Environment (to execute PyDeps Intelligence):**
+  - Python 3.10, 3.11, 3.12, 3.13+
+  - Linux (glibc & musl), macOS (Intel & Apple Silicon), Windows (x86_64, ARM64)
+- **Target Analysis (projects analyzed by PyDeps Intelligence):**
+  - Python 3.8, 3.9, 3.10, 3.11, 3.12, 3.13+
+
+---
+
+## Execution Safety & Sandboxing
+
+A Python virtual environment isolates dependencies, **not** system resources. To protect developer systems:
+- Static analysis never imports or executes scanned code.
+- Network operations are restricted and honor offline mode.
+- Local runtime execution requires the explicit `--allow-local-execution` flag.
+- Containerized execution via Docker provides isolation when validating untrusted third-party code.
+
+---
+
+## Contributing
+
+We welcome contributions! To set up a development workspace:
+
+```bash
+git clone https://github.com/your-org/pydeps-intelligence.git
+cd pydeps-intelligence
 python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/macOS:
-source .venv/bin/activate
-
-# Install in editable mode with development dependencies
+source .venv/bin/activate  # Or .venv\Scripts\activate on Windows
 pip install -e ".[dev]"
-```
 
-### CLI Usage
-
-#### Unified Diagnosis Pipeline
-```bash
-# Full project diagnosis (scans source, maps packages, evaluates compatibility, resolves constraints)
-pydeps diagnose ./my_project
-
-# Offline mode using cached metadata
-pydeps diagnose ./my_project --offline
-
-# Export self-contained HTML dashboard and JSON reports
-pydeps diagnose ./my_project --output ./pydeps-output
-
-# Machine-readable pure JSON output on stdout (diagnostics sent to stderr)
-pydeps diagnose ./my_project --json > report.json
-
-# Optional isolated runtime validation
-pydeps diagnose ./my_project --validate --runner docker --level imports
-```
-
-#### Dashboard and Report Generation
-```bash
-# Render or re-generate an offline HTML dashboard from an existing JSON report
-pydeps report ./pydeps-output/report.json --output ./pydeps-output/index.html
-```
-
-#### Report Comparison & Regression Detection
-```bash
-# Compare two reports across git branches or time to surface regressions and shifts
-pydeps compare old-report.json new-report.json
-
-# Output pure JSON delta
-pydeps compare old-report.json new-report.json --json
-```
-
-#### Individual Engine Commands
-```bash
-# Source scanning and AST import extraction
-pydeps scan ./my_project
-pydeps analyze ./my_project
-
-# Package mapping and PyPI metadata inspection
-pydeps map ./my_project
-pydeps metadata flask --offline
-
-# Compatibility matrix and dependency resolution
-pydeps compatibility requests --target linux-x86_64-cpython-py3.11
-pydeps resolve ./my_project --mode universal --strategy latest-compatible
-
-# Isolated runtime validation
-pydeps validate ./my_project --runner local --level install --allow-local-execution
-```
-
-### Development & Testing
-
-```bash
-# Run test suite
-pytest
-
-# Run linter
+# Run tests and linters
+pytest -q
 ruff check .
+ruff format --check .
 ```
+
+---
 
 ## License
 
-MIT
+PyDeps Intelligence is distributed under the terms of the [Apache License, Version 2.0](LICENSE).
+Copyright 2026 sri suriya.

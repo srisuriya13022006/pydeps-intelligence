@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from pydeps.compatibility.artifact_evaluator import evaluate_release_artifacts
-from pydeps.metadata.metadata_models import PackageRelease, ReleaseArtifact
-from pydeps.models.compatibility import CompatibilityStatus
-from pydeps.models.project import (
+from pydeps_intelligence.compatibility.artifact_evaluator import evaluate_release_artifacts
+from pydeps_intelligence.metadata.metadata_models import PackageRelease, ReleaseArtifact
+from pydeps_intelligence.models.compatibility import CompatibilityStatus
+from pydeps_intelligence.models.project import (
     Architecture,
     OperatingSystem,
     PythonImplementation,

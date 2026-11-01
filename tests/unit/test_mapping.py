@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydeps.models.analysis import ImportAnalysisResult
-from pydeps.models.imports import ImportRecord, ImportType, MappingSource
-from pydeps.models.mapping import ConfidenceLevel
-from pydeps.models.structure import ProjectStructure
-from pydeps.registry.mapping_overrides import MappingOverrides
-from pydeps.registry.package_mapper import PackageMapper
+from pydeps_intelligence.models.analysis import ImportAnalysisResult
+from pydeps_intelligence.models.imports import ImportRecord, ImportType, MappingSource
+from pydeps_intelligence.models.mapping import ConfidenceLevel
+from pydeps_intelligence.models.structure import ProjectStructure
+from pydeps_intelligence.registry.mapping_overrides import MappingOverrides
+from pydeps_intelligence.registry.package_mapper import PackageMapper
 
 
 def test_known_curated_mappings() -> None:

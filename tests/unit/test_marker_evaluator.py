@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from pydeps.compatibility.marker_evaluator import MarkerEvaluator
-from pydeps.compatibility.platform_profiles import TargetPlatformProfile
-from pydeps.models.compatibility import CompatibilityStatus
-from pydeps.models.dependencies import Dependency
-from pydeps.models.project import (
+from pydeps_intelligence.compatibility.marker_evaluator import MarkerEvaluator
+from pydeps_intelligence.compatibility.platform_profiles import TargetPlatformProfile
+from pydeps_intelligence.models.compatibility import CompatibilityStatus
+from pydeps_intelligence.models.dependencies import Dependency
+from pydeps_intelligence.models.project import (
     Architecture,
     OperatingSystem,
     PythonImplementation,
@@ -221,7 +221,7 @@ def test_marker_guarded_variable_extraction_fallback() -> None:
     """Regression test: guarded marker variable extraction works with or without _markers AST."""
     from packaging.markers import Marker
 
-    from pydeps.compatibility.marker_evaluator import extract_marker_variables
+    from pydeps_intelligence.compatibility.marker_evaluator import extract_marker_variables
 
     marker = Marker("sys_platform == 'linux' and python_version >= '3.11' and os_name == 'posix'")
     vars_found = extract_marker_variables(marker)

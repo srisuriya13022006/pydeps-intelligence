@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from pydeps.models.project import Architecture, OperatingSystem, TargetEnvironment
-from pydeps.models.validation import NetworkPolicy
-from pydeps.validation.runners.docker_runner import DockerRunner
+from pydeps_intelligence.models.project import Architecture, OperatingSystem, TargetEnvironment
+from pydeps_intelligence.models.validation import NetworkPolicy
+from pydeps_intelligence.validation.runners.docker_runner import DockerRunner
 
 
 def test_docker_runner_hardened_run_arguments(tmp_path: Path) -> None:

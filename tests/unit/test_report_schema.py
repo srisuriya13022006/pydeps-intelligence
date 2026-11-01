@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from pydeps.models.project import Architecture, OperatingSystem, TargetEnvironment
-from pydeps.reporting.report_schema import (
+from pydeps_intelligence.models.project import Architecture, OperatingSystem, TargetEnvironment
+from pydeps_intelligence.reporting.report_schema import (
     CompatibilitySection,
     DiagnosticReport,
     ExecutionEnvironmentInfo,
@@ -111,7 +111,7 @@ def test_diagnostic_report_serialization_and_deserialization() -> None:
 
 def test_json_schema_generation_and_conformance() -> None:
     """DiagnosticReport JSON schema must correctly declare definitions, required fields, and enums."""
-    from pydeps.reporting.report_schema import DependencyHealthStatus
+    from pydeps_intelligence.reporting.report_schema import DependencyHealthStatus
 
     schema = DiagnosticReport.model_json_schema()
 

@@ -5,12 +5,12 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from pydeps.models.project import (
+from pydeps_intelligence.models.project import (
     Architecture,
     OperatingSystem,
     TargetEnvironment,
 )
-from pydeps.validation.interpreter_discovery import InterpreterDiscovery
+from pydeps_intelligence.validation.interpreter_discovery import InterpreterDiscovery
 
 
 def test_discover_current_running_interpreter() -> None:

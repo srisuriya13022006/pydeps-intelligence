@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydeps.models.analysis import ImportAnalysisResult
-from pydeps.models.dependencies import DependencyType
-from pydeps.models.imports import ImportContext, ImportRecord, ImportType, MappingSource
-from pydeps.models.mapping import ConfidenceLevel, PackageMappingResult, PackageReport
-from pydeps.models.structure import ProjectStructure
-from pydeps.resolver.dependency_classifier import DependencyClassifier
+from pydeps_intelligence.models.analysis import ImportAnalysisResult
+from pydeps_intelligence.models.dependencies import DependencyType
+from pydeps_intelligence.models.imports import (
+    ImportContext,
+    ImportRecord,
+    ImportType,
+    MappingSource,
+)
+from pydeps_intelligence.models.mapping import ConfidenceLevel, PackageMappingResult, PackageReport
+from pydeps_intelligence.models.structure import ProjectStructure
+from pydeps_intelligence.resolver.dependency_classifier import DependencyClassifier
 
 
 def _make_analysis(all_imports: list[ImportRecord] | None = None) -> ImportAnalysisResult:

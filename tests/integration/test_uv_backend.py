@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from pydeps.models.dependencies import (
+from pydeps_intelligence.models.dependencies import (
     Dependency,
     DependencyType,
     ResolutionMode,
@@ -14,9 +14,9 @@ from pydeps.models.dependencies import (
     ResolutionStatus,
     ResolutionStrategy,
 )
-from pydeps.models.project import Architecture, OperatingSystem, TargetEnvironment
-from pydeps.resolver.resolution_workspace import ResolutionWorkspace
-from pydeps.resolver.uv_backend import UvBackend
+from pydeps_intelligence.models.project import Architecture, OperatingSystem, TargetEnvironment
+from pydeps_intelligence.resolver.resolution_workspace import ResolutionWorkspace
+from pydeps_intelligence.resolver.uv_backend import UvBackend
 
 MOCK_UV_LOCK_CONTENT = """version = 1
 requires-python = ">=3.9"

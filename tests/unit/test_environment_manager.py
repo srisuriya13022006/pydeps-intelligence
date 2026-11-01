@@ -5,10 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from pydeps.models.project import Architecture, OperatingSystem, TargetEnvironment
-from pydeps.models.validation import EnvironmentInfo
-from pydeps.validation.environment_manager import EnvironmentManager
-from pydeps.validation.runners.base import ExecutionRunner
+from pydeps_intelligence.models.project import Architecture, OperatingSystem, TargetEnvironment
+from pydeps_intelligence.models.validation import EnvironmentInfo
+from pydeps_intelligence.validation.environment_manager import EnvironmentManager
+from pydeps_intelligence.validation.runners.base import ExecutionRunner
 
 
 def test_environment_manager_lifecycle(tmp_path: Path) -> None:

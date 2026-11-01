@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from pydeps.compatibility.platform_profiles import create_platform_profile, get_supported_wheel_tags
-from pydeps.compatibility.wheel_compatibility import evaluate_wheel_filename
-from pydeps.models.project import (
+from pydeps_intelligence.compatibility.platform_profiles import (
+    create_platform_profile,
+    get_supported_wheel_tags,
+)
+from pydeps_intelligence.compatibility.wheel_compatibility import evaluate_wheel_filename
+from pydeps_intelligence.models.project import (
     Architecture,
     OperatingSystem,
     PythonImplementation,

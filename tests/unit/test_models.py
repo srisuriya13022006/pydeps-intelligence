@@ -7,17 +7,22 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from pydeps.models.compatibility import CompatibilityResult, CompatibilityStatus
-from pydeps.models.dependencies import Dependency, DependencyType, ResolutionResult
-from pydeps.models.imports import ImportRecord, ImportType, MappingSource, PackageMapping
-from pydeps.models.project import (
+from pydeps_intelligence.models.compatibility import CompatibilityResult, CompatibilityStatus
+from pydeps_intelligence.models.dependencies import Dependency, DependencyType, ResolutionResult
+from pydeps_intelligence.models.imports import (
+    ImportRecord,
+    ImportType,
+    MappingSource,
+    PackageMapping,
+)
+from pydeps_intelligence.models.project import (
     Architecture,
     OperatingSystem,
     PythonImplementation,
     TargetEnvironment,
 )
-from pydeps.models.report import AnalysisReport, ProjectInformation
-from pydeps.models.validation import ValidationResult, ValidationStatus
+from pydeps_intelligence.models.report import AnalysisReport, ProjectInformation
+from pydeps_intelligence.models.validation import ValidationResult, ValidationStatus
 
 # =========================================================================
 # TargetEnvironment tests

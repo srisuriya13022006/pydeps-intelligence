@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pydeps.models.dependencies import ResolutionStrategy
-from pydeps.resolver.resolution_strategy import StrategyMapper
+from pydeps_intelligence.models.dependencies import ResolutionStrategy
+from pydeps_intelligence.resolver.resolution_strategy import StrategyMapper
 
 
 def test_strategy_mapper_uv_latest_compatible() -> None:

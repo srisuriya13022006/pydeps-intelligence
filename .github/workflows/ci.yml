@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-format:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Ruff
+        run: pip install ruff
+      - name: Ruff Check
+        run: ruff check .
+      - name: Ruff Format Check
+        run: ruff format --check .
+
+  test:
+    name: Test (Python ${{ matrix.python-version }} on ${{ matrix.os }})
+    needs: lint-and-format
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Run Test Suite
+        run: pytest -q
+
+  build-and-verify:
+    name: Build & Package Verification
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install packaging tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+      - name: Build sdist and wheel
+        run: python -m build
+      - name: Twine check
+        run: twine check dist/*
+      - name: Clean installation test
+        run: |
+          python -m venv test_env
+          ./test_env/bin/pip install --upgrade pip
+          ./test_env/bin/pip install dist/*.whl
+          ./test_env/bin/python -c "import pydeps_intelligence; print('Installed version:', pydeps_intelligence.__version__)"
+          ./test_env/bin/pydeps-intel --help
+          ./test_env/bin/pydeps-intel --version

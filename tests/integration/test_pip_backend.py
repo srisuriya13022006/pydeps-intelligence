@@ -6,15 +6,15 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from pydeps.models.dependencies import (
+from pydeps_intelligence.models.dependencies import (
     Dependency,
     ResolutionMode,
     ResolutionRequest,
     ResolutionStatus,
 )
-from pydeps.models.project import Architecture, OperatingSystem, TargetEnvironment
-from pydeps.resolver.pip_backend import PipBackend
-from pydeps.resolver.resolution_workspace import ResolutionWorkspace
+from pydeps_intelligence.models.project import Architecture, OperatingSystem, TargetEnvironment
+from pydeps_intelligence.resolver.pip_backend import PipBackend
+from pydeps_intelligence.resolver.resolution_workspace import ResolutionWorkspace
 
 MOCK_PIP_REPORT = {
     "version": "0",

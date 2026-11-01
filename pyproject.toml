@@ -1,18 +1,19 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pydeps"
-version = "0.1.0"
+name = "pydeps-intelligence"
+version = "0.1.0a1"
 description = "A Python Dependency Intelligence Engine"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 authors = [
-    { name = "PyDeps Authors" }
+    { name = "sri suriya", email = "155533834+srisuriya13022006@users.noreply.github.com" }
 ]
-keywords = ["dependencies", "packaging", "resolver", "compatibility", "python"]
+keywords = ["dependencies", "packaging", "resolver", "compatibility", "python", "intelligence"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -36,16 +37,18 @@ dependencies = [
 dev = [
     "pytest>=7.4.0",
     "ruff>=0.1.0",
+    "build>=1.0.0",
+    "twine>=4.0.0",
 ]
 
 [project.scripts]
-pydeps = "pydeps.cli.main:app"
+pydeps-intel = "pydeps_intelligence.cli.main:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-pydeps = ["py.typed"]
+pydeps_intelligence = ["py.typed"]
 
 [tool.ruff]
 target-version = "py310"

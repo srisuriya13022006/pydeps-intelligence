@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydeps.metadata.metadata_parser import (
+from pydeps_intelligence.metadata.metadata_parser import (
     parse_pypi_release,
     parse_requirement_entry,
     parse_wheel_platform_tags,

@@ -4,18 +4,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydeps.models.analysis import ImportAnalysisResult
-from pydeps.models.compatibility import (
+from pydeps_intelligence.models.analysis import ImportAnalysisResult
+from pydeps_intelligence.models.compatibility import (
     CompatibilityMatrix,
     CompatibilityResult,
     CompatibilityStatus,
 )
-from pydeps.models.dependencies import ResolutionConflict, ResolutionResult
-from pydeps.models.mapping import ConfidenceLevel, PackageMappingResult, PackageReport
-from pydeps.models.project import Architecture, OperatingSystem, TargetEnvironment
-from pydeps.models.structure import ProjectStructure
-from pydeps.reporting.report_builder import ReportBuilder
-from pydeps.reporting.report_schema import StageStatus
+from pydeps_intelligence.models.dependencies import ResolutionConflict, ResolutionResult
+from pydeps_intelligence.models.mapping import ConfidenceLevel, PackageMappingResult, PackageReport
+from pydeps_intelligence.models.project import Architecture, OperatingSystem, TargetEnvironment
+from pydeps_intelligence.models.structure import ProjectStructure
+from pydeps_intelligence.reporting.report_builder import ReportBuilder
+from pydeps_intelligence.reporting.report_schema import StageStatus
 
 
 def test_report_builder_handles_missing_stages_gracefully(tmp_path: Path) -> None:
@@ -125,7 +125,7 @@ def test_report_builder_separates_pipeline_and_health_for_partial_mappings(
     tmp_path: Path,
 ) -> None:
     """When imports remain unmapped, pipeline_status can pass while dependency_health is partial."""
-    from pydeps.reporting.report_schema import DependencyHealthStatus
+    from pydeps_intelligence.reporting.report_schema import DependencyHealthStatus
 
     struct = ProjectStructure(root_path=tmp_path)
     analysis = ImportAnalysisResult(structure=struct)

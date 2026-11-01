@@ -8,14 +8,19 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from pydeps.config import (
+from pydeps_intelligence.config import (
     get_default_config,
     load_config_from_dict,
     load_config_from_file,
     resolve_project_config,
 )
-from pydeps.exceptions import ConfigError
-from pydeps.models.project import Architecture, OperatingSystem, ProjectConfig, PythonImplementation
+from pydeps_intelligence.exceptions import ConfigError
+from pydeps_intelligence.models.project import (
+    Architecture,
+    OperatingSystem,
+    ProjectConfig,
+    PythonImplementation,
+)
 
 
 def test_default_config() -> None:
@@ -89,7 +94,7 @@ def test_empty_target_architectures_in_config() -> None:
 
 def test_load_config_from_json_file(tmp_path: Path) -> None:
     """Test loading configuration from a JSON file."""
-    config_file = tmp_path / "pydeps.json"
+    config_file = tmp_path / "pydeps_intelligence.json"
     data = {
         "target_python_versions": ["3.11", "3.12"],
         "target_operating_systems": ["linux"],
@@ -148,7 +153,7 @@ def test_resolve_project_config_defaults(tmp_path: Path) -> None:
 
 def test_resolve_project_config_with_pydeps_toml(tmp_path: Path) -> None:
     """Test resolve_project_config auto-discovering pydeps.toml."""
-    config_file = tmp_path / "pydeps.toml"
+    config_file = tmp_path / "pydeps_intelligence.toml"
     config_file.write_text('target_python_versions = ["3.12"]\n', encoding="utf-8")
 
     config = resolve_project_config(project_path=tmp_path)

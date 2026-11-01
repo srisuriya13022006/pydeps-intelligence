@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from packaging.version import Version
 
-from pydeps.compatibility.python_compatibility import evaluate_python_version
-from pydeps.models.compatibility import CompatibilityStatus
+from pydeps_intelligence.compatibility.python_compatibility import evaluate_python_version
+from pydeps_intelligence.models.compatibility import CompatibilityStatus
 
 
 def test_python_compatibility_exact_and_range() -> None:

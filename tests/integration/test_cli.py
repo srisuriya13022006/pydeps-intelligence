@@ -7,8 +7,8 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from pydeps import __version__
-from pydeps.cli.main import app
+from pydeps_intelligence import __version__
+from pydeps_intelligence.cli.main import app
 
 runner = CliRunner()
 
@@ -25,17 +25,17 @@ def test_cli_help() -> None:
 
 
 def test_cli_version_flag() -> None:
-    """Test 'pydeps --version' outputs current version."""
+    """Test 'pydeps-intel --version' outputs current version."""
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert f"pydeps {__version__}" in result.stdout
+    assert f"pydeps-intel {__version__}" in result.stdout
 
 
 def test_cli_version_short_flag() -> None:
-    """Test 'pydeps -v' outputs current version."""
+    """Test 'pydeps-intel -v' outputs current version."""
     result = runner.invoke(app, ["-v"])
     assert result.exit_code == 0
-    assert f"pydeps {__version__}" in result.stdout
+    assert f"pydeps-intel {__version__}" in result.stdout
 
 
 def test_cli_no_args_shows_help() -> None:

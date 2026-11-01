@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from pydeps.scanner import ProjectScanner
+from pydeps_intelligence.scanner import ProjectScanner
 
 
 def test_scan_empty_directory(tmp_path: Path) -> None:

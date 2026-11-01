@@ -7,8 +7,8 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from pydeps.cli.main import app
-from pydeps.reporting.report_schema import DiagnosticReport, StageStatus
+from pydeps_intelligence.cli.main import app
+from pydeps_intelligence.reporting.report_schema import DiagnosticReport, StageStatus
 
 runner = CliRunner()
 

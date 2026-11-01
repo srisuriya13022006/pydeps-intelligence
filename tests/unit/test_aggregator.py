@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydeps.aggregator import ImportAggregator
-from pydeps.classifier import StdlibCatalog
-from pydeps.models.imports import ImportContext, ImportRecord, ImportType
-from pydeps.models.structure import ProjectStructure
+from pydeps_intelligence.aggregator import ImportAggregator
+from pydeps_intelligence.classifier import StdlibCatalog
+from pydeps_intelligence.models.imports import ImportContext, ImportRecord, ImportType
+from pydeps_intelligence.models.structure import ProjectStructure
 
 
 def test_aggregator_categorization() -> None:

@@ -7,9 +7,9 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from pydeps.cli.main import app
-from pydeps.metadata.metadata_cache import MetadataCache
-from pydeps.metadata.metadata_models import PackageRelease, ReleaseArtifact
+from pydeps_intelligence.cli.main import app
+from pydeps_intelligence.metadata.metadata_cache import MetadataCache
+from pydeps_intelligence.metadata.metadata_models import PackageRelease, ReleaseArtifact
 
 runner = CliRunner()
 

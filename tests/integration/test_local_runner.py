@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from pydeps.models.project import Architecture, OperatingSystem
-from pydeps.models.validation import EnvironmentInfo, ValidationStatus
-from pydeps.validation.runners.local_runner import LocalRunner
+from pydeps_intelligence.models.project import Architecture, OperatingSystem
+from pydeps_intelligence.models.validation import EnvironmentInfo, ValidationStatus
+from pydeps_intelligence.validation.runners.local_runner import LocalRunner
 
 
 def test_local_runner_smoke_import_success(tmp_path: Path) -> None:

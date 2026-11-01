@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pydeps.metadata.pypi_client import (
+from pydeps_intelligence.metadata.pypi_client import (
     PyPIClient,
     PyPIError,
     PyPINetworkError,

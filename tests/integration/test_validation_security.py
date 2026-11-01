@@ -5,18 +5,18 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from pydeps.models.project import Architecture, OperatingSystem, TargetEnvironment
-from pydeps.models.validation import (
+from pydeps_intelligence.models.project import Architecture, OperatingSystem, TargetEnvironment
+from pydeps_intelligence.models.validation import (
     EnvironmentInfo,
     ExecutionPolicy,
     NetworkPolicy,
     ValidationRequest,
     ValidationStatus,
 )
-from pydeps.validation.network_policy import NetworkPolicyController
-from pydeps.validation.runners.docker_runner import DockerRunner
-from pydeps.validation.runners.local_runner import LocalRunner
-from pydeps.validation.validation_orchestrator import ValidationOrchestrator
+from pydeps_intelligence.validation.network_policy import NetworkPolicyController
+from pydeps_intelligence.validation.runners.docker_runner import DockerRunner
+from pydeps_intelligence.validation.runners.local_runner import LocalRunner
+from pydeps_intelligence.validation.validation_orchestrator import ValidationOrchestrator
 
 
 def test_security_no_execution_without_explicit_authorization(tmp_path: Path) -> None:

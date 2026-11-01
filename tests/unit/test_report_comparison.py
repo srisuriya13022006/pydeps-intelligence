@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from pydeps.models.project import Architecture, OperatingSystem, TargetEnvironment
-from pydeps.reporting.report_comparison import ReportComparator
-from pydeps.reporting.report_schema import (
+from pydeps_intelligence.models.project import Architecture, OperatingSystem, TargetEnvironment
+from pydeps_intelligence.reporting.report_comparison import ReportComparator
+from pydeps_intelligence.reporting.report_schema import (
     CompatibilitySection,
     DiagnosticReport,
     ExecutionEnvironmentInfo,

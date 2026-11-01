@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
-from pydeps.cli.main import app
+from pydeps_intelligence.cli.main import app
 
 runner = CliRunner()
 
@@ -42,7 +42,7 @@ version = "2.31.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = []
 """
-    with patch("pydeps.resolver.uv_backend.UvBackend.find_uv", return_value="uv"):
+    with patch("pydeps_intelligence.resolver.uv_backend.UvBackend.find_uv", return_value="uv"):
 
         def mock_run(cmd, cwd=None, *args, **kwargs):
             mock = MagicMock()
@@ -76,7 +76,7 @@ version = "2.31.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = []
 """
-    with patch("pydeps.resolver.uv_backend.UvBackend.find_uv", return_value="uv"):
+    with patch("pydeps_intelligence.resolver.uv_backend.UvBackend.find_uv", return_value="uv"):
 
         def mock_run(cmd, cwd=None, *args, **kwargs):
             mock = MagicMock()

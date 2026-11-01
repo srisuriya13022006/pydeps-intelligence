@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydeps.analyzer import ImportAnalyzer
-from pydeps.models.imports import ImportContext, ImportType
+from pydeps_intelligence.analyzer import ImportAnalyzer
+from pydeps_intelligence.models.imports import ImportContext, ImportType
 
 
 def test_standard_and_from_imports() -> None:

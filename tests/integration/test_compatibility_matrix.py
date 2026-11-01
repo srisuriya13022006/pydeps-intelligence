@@ -7,15 +7,19 @@ from pathlib import Path
 
 import pytest
 
-from pydeps.compatibility.compatibility_matrix import MatrixBuilder
-from pydeps.facade import PyDeps
-from pydeps.metadata.metadata_models import MetadataResult, PackageRelease, ReleaseArtifact
-from pydeps.models.compatibility import (
+from pydeps_intelligence.compatibility.compatibility_matrix import MatrixBuilder
+from pydeps_intelligence.facade import PyDeps
+from pydeps_intelligence.metadata.metadata_models import (
+    MetadataResult,
+    PackageRelease,
+    ReleaseArtifact,
+)
+from pydeps_intelligence.models.compatibility import (
     CompatibilityMatrix,
     CompatibilityStatus,
 )
-from pydeps.models.dependencies import Dependency
-from pydeps.models.project import (
+from pydeps_intelligence.models.dependencies import Dependency
+from pydeps_intelligence.models.project import (
     Architecture,
     OperatingSystem,
     PythonImplementation,

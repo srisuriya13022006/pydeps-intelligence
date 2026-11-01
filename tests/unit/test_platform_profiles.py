@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from pydeps.compatibility.platform_profiles import (
+from pydeps_intelligence.compatibility.platform_profiles import (
     TargetPlatformProfile,
     create_platform_profile,
     is_valid_target_configuration,
 )
-from pydeps.models.project import (
+from pydeps_intelligence.models.project import (
     Architecture,
     OperatingSystem,
     PythonImplementation,

@@ -51,6 +51,7 @@ htmlcov/
 
 # PyDeps output artifacts
 pydeps-output/
+.pydeps/
 
 # OS files
 .DS_Store

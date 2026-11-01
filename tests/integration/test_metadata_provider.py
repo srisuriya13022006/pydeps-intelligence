@@ -5,9 +5,9 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from pydeps.metadata.metadata_cache import MetadataCache
-from pydeps.metadata.metadata_provider import MetadataProvider
-from pydeps.metadata.pypi_client import PyPIClient
+from pydeps_intelligence.metadata.metadata_cache import MetadataCache
+from pydeps_intelligence.metadata.metadata_provider import MetadataProvider
+from pydeps_intelligence.metadata.pypi_client import PyPIClient
 
 
 @pytest.fixture

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pydeps.models.validation import NetworkPolicy
-from pydeps.validation.network_policy import NetworkPolicyController
+from pydeps_intelligence.models.validation import NetworkPolicy
+from pydeps_intelligence.validation.network_policy import NetworkPolicyController
 
 
 def test_safe_environment_strips_sensitive_variables(monkeypatch) -> None:

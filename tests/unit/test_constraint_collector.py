@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydeps.models.dependencies import DependencyType
-from pydeps.resolver.constraint_collector import ConstraintCollector, parse_pep508_line
+from pydeps_intelligence.models.dependencies import DependencyType
+from pydeps_intelligence.resolver.constraint_collector import ConstraintCollector, parse_pep508_line
 
 
 def test_parse_pep508_line_variants() -> None:

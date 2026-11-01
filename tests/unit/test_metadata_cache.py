@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydeps.metadata.metadata_cache import MetadataCache
-from pydeps.metadata.metadata_models import PackageRelease
+from pydeps_intelligence.metadata.metadata_cache import MetadataCache
+from pydeps_intelligence.metadata.metadata_models import PackageRelease
 
 
 def _create_sample_release(name: str = "sample", version: str = "1.0.0") -> PackageRelease:
