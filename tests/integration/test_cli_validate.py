@@ -57,12 +57,14 @@ def test_cli_validate_blocked_by_policy_when_unauthorized(tmp_path: Path) -> Non
     }
     res_file.write_text(json.dumps(res_data), encoding="utf-8")
 
-    import platform
     import sys
 
-    host_os = "windows" if platform.system() == "Windows" else "linux"
+    from pydeps_intelligence.validation.runners.local_runner import LocalRunner
+
+    host_os = LocalRunner._detect_host_os().value
+    host_arch = LocalRunner._detect_host_arch().value
     host_py = f"{sys.version_info.major}.{sys.version_info.minor}"
-    target_str = f"{host_os}-x86_64-cpython-py{host_py}"
+    target_str = f"{host_os}-{host_arch}-cpython-py{host_py}"
 
     # Invocation without --allow-local-execution
     result = cli_runner.invoke(

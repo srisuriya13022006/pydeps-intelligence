@@ -19,7 +19,7 @@ def test_cli_compatibility_non_existent_path(tmp_path: Path) -> None:
     bad_path = tmp_path / "missing_dir"
     result = runner.invoke(app, ["compatibility", str(bad_path)])
     assert result.exit_code == 1
-    assert "does not exist" in result.stderr or "does not exist" in result.stdout
+    assert "does not exist" in result.output
 
 
 def test_cli_compatibility_offline_cached_run(tmp_path: Path) -> None:
@@ -137,6 +137,6 @@ def test_cli_compatibility_impossible_target_warning(tmp_path: Path) -> None:
     # Since only impossible target was passed, CLI reports error
     assert result.exit_code == 1
     assert (
-        "No valid target environments specified" in result.stderr
-        or "No valid target environments" in result.stdout
+        "No valid target environments specified" in result.output
+        or "No valid target environments" in result.output
     )

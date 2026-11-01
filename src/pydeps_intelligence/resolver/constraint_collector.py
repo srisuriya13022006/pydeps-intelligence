@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import configparser
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
-import tomllib
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib  # type: ignore[no-redef]
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.utils import canonicalize_name
 

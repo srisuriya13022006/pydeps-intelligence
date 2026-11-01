@@ -5,9 +5,13 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
-import tomllib
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib  # type: ignore[no-redef]
 from packaging.utils import canonicalize_name
 
 from pydeps_intelligence.models.dependencies import (

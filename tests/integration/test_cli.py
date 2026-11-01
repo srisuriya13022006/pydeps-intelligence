@@ -72,7 +72,7 @@ def test_cli_scan_non_existent_path(tmp_path: Path) -> None:
     bad_path = tmp_path / "missing_dir"
     result = runner.invoke(app, ["scan", str(bad_path)])
     assert result.exit_code == 1
-    assert "does not exist" in result.stderr or "does not exist" in result.stdout
+    assert "does not exist" in result.output
 
 
 def test_cli_analyze_command(tmp_path: Path) -> None:
@@ -108,7 +108,7 @@ def test_cli_analyze_non_existent_path(tmp_path: Path) -> None:
     bad_path = tmp_path / "missing_dir"
     result = runner.invoke(app, ["analyze", str(bad_path)])
     assert result.exit_code == 1
-    assert "does not exist" in result.stderr or "does not exist" in result.stdout
+    assert "does not exist" in result.output
 
 
 def test_cli_analyze_resolve_names(tmp_path: Path) -> None:
@@ -163,14 +163,14 @@ def test_cli_map_non_existent_path(tmp_path: Path) -> None:
     bad_path = tmp_path / "missing_dir"
     result = runner.invoke(app, ["map", str(bad_path)])
     assert result.exit_code == 1
-    assert "does not exist" in result.stderr or "does not exist" in result.stdout
+    assert "does not exist" in result.output
 
 
 def test_cli_metadata_offline_cache_miss() -> None:
     """Test 'pydeps metadata --offline' on un-cached package exits with 1."""
     result = runner.invoke(app, ["metadata", "uncached-pkg-xyz", "--offline"])
     assert result.exit_code == 1
-    assert "Error fetching metadata" in result.stderr or "offline mode is enabled" in result.stderr
+    assert "Error fetching metadata" in result.output or "offline mode is enabled" in result.output
 
 
 def test_cli_metadata_offline_json_miss() -> None:

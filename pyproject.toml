@@ -68,6 +68,10 @@ ignore = [
     "E501",  # Line length handled by formatter
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"src/pydeps_intelligence/cli/main.py" = ["UP007", "UP045"]
+
+
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-ra -q"

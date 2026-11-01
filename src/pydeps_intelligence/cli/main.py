@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import typer
 
@@ -44,7 +44,7 @@ def version_callback(value: bool) -> None:
 @app.callback()
 def main(
     version: Annotated[
-        bool | None,
+        Optional[bool],
         typer.Option(
             "--version",
             "-v",
@@ -332,7 +332,7 @@ def metadata_command(
         ),
     ],
     version: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--version",
             "-v",
@@ -403,42 +403,42 @@ def compatibility_command(
         ),
     ] = Path("."),
     python: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--python",
             help="Comma-separated Python versions (e.g. '3.10,3.11,3.12').",
         ),
     ] = None,
     operating_system: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--os",
             help="Comma-separated operating systems (e.g. 'windows,linux,macos').",
         ),
     ] = None,
     architecture: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--arch",
             help="Comma-separated machine architectures (e.g. 'x86_64,arm64').",
         ),
     ] = None,
     implementation: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--implementation",
             help="Comma-separated Python implementations (e.g. 'CPython,PyPy').",
         ),
     ] = None,
     extra: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--extra",
             help="Package extra to activate during marker evaluation.",
         ),
     ] = None,
     platform_profile: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--platform-profile",
             help="Path to JSON file containing TargetPlatformProfile configuration or overrides.",
@@ -623,7 +623,7 @@ def resolve_command(
         ),
     ] = "uv",
     python: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--python",
             "-p",
@@ -631,28 +631,28 @@ def resolve_command(
         ),
     ] = None,
     operating_system: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--os",
             help="Target operating system(s), comma-separated (e.g. 'windows,linux,macos').",
         ),
     ] = None,
     architecture: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--arch",
             help="Target hardware architecture(s), comma-separated (e.g. 'x86_64,arm64').",
         ),
     ] = None,
     implementation: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--implementation",
             help="Target Python implementation(s), comma-separated (e.g. 'cpython,pypy').",
         ),
     ] = None,
     abi: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--abi",
             help="Explicit target ABI tag if specified.",
@@ -667,7 +667,7 @@ def resolve_command(
         ),
     ] = "latest-compatible",
     extra: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--extra",
             help="Project extra(s) to activate, comma-separated.",
@@ -695,7 +695,7 @@ def resolve_command(
         ),
     ] = False,
     output: Annotated[
-        Path | None,
+        Optional[Path],
         typer.Option(
             "--output",
             "-o",
@@ -844,7 +844,7 @@ def validate_command(
         ),
     ] = Path("."),
     resolution: Annotated[
-        Path | None,
+        Optional[Path],
         typer.Option(
             "--resolution",
             help="Path to existing resolution JSON file to validate.",
@@ -865,7 +865,7 @@ def validate_command(
         ),
     ] = "install",
     target: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--target",
             help="Target platform specification (e.g. 'windows-x86_64-cpython-py3.11').",
@@ -889,14 +889,14 @@ def validate_command(
         ),
     ] = 300,
     memory_limit: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--memory-limit",
             help="Container memory limit constraint (e.g. '1g', '512m').",
         ),
     ] = None,
     cpu_limit: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--cpu-limit",
             help="Container CPU quota constraint (e.g. '1.0', '0.5').",
@@ -938,7 +938,7 @@ def validate_command(
         ),
     ] = False,
     output_dir: Annotated[
-        Path | None,
+        Optional[Path],
         typer.Option(
             "--output",
             help="Directory to save validation.json, validation-report.html, and logs.",
@@ -1128,7 +1128,7 @@ def diagnose_command(
         typer.Argument(help="Path to target project to diagnose.", exists=True),
     ] = Path("."),
     target: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--target", help="Target platform specification (e.g. 'linux-x86_64-cpython-py3.11')."
         ),
@@ -1173,7 +1173,7 @@ def diagnose_command(
         typer.Option("--allow-project-code", help="Authorize executing project test code."),
     ] = False,
     output: Annotated[
-        Path | None,
+        Optional[Path],
         typer.Option("--output", "-o", help="Directory to export HTML dashboard and JSON reports."),
     ] = None,
     html_report: Annotated[
@@ -1380,7 +1380,7 @@ def report_command(
         typer.Argument(help="Path to an existing report.json file.", exists=True),
     ],
     output: Annotated[
-        Path | None,
+        Optional[Path],
         typer.Option(
             "--output",
             "-o",

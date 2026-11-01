@@ -11,7 +11,6 @@ from packaging.tags import (
     generic_tags,
     mac_platforms,
     parse_tag,
-    pure_python_tags,
 )
 from packaging.version import Version
 from pydantic import BaseModel, ConfigDict, Field
@@ -370,6 +369,6 @@ def get_supported_wheel_tags(
         )
 
     # 4. Add pure python tags (e.g. py3-none-any)
-    tags_set.update(pure_python_tags(python_version=py_tuple))
+    tags_set.update(compatible_tags(python_version=py_tuple, platforms=["any"]))
 
     return frozenset(tags_set)

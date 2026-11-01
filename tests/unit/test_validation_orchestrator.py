@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -21,15 +22,16 @@ from pydeps_intelligence.models.validation import (
     ValidationStatus,
 )
 from pydeps_intelligence.validation.runners.base import ExecutionRunner
+from pydeps_intelligence.validation.runners.local_runner import LocalRunner
 from pydeps_intelligence.validation.validation_orchestrator import ValidationOrchestrator
 
 
 def test_orchestrator_blocks_local_execution_without_authorization(tmp_path: Path) -> None:
     """Orchestrator must block local execution with BLOCKED_BY_POLICY when untrusted."""
     target = TargetEnvironment(
-        python_version="3.11",
-        operating_system=OperatingSystem.WINDOWS,
-        architecture=Architecture.X86_64,
+        python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
+        operating_system=LocalRunner._detect_host_os(),
+        architecture=LocalRunner._detect_host_arch(),
     )
     request = ValidationRequest(
         project_path=tmp_path,
@@ -50,9 +52,9 @@ def test_orchestrator_blocks_local_execution_without_authorization(tmp_path: Pat
 def test_orchestrator_dry_run_simulation(tmp_path: Path) -> None:
     """Dry run produces a planned execution structure without running commands."""
     target = TargetEnvironment(
-        python_version="3.11",
-        operating_system=OperatingSystem.WINDOWS,
-        architecture=Architecture.X86_64,
+        python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
+        operating_system=LocalRunner._detect_host_os(),
+        architecture=LocalRunner._detect_host_arch(),
     )
     request = ValidationRequest(
         project_path=tmp_path,

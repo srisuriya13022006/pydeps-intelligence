@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import platform
-
 from pydeps_intelligence.models.project import (
     Architecture,
     OperatingSystem,
@@ -42,9 +40,9 @@ class FakeInterpreterDiscovery(InterpreterDiscovery):
 
 def test_local_runner_rejects_foreign_os() -> None:
     """Local runner must strictly reject targets with foreign operating systems."""
-    host_os = OperatingSystem.WINDOWS if platform.system() == "Windows" else OperatingSystem.LINUX
+    host_os = LocalRunner._detect_host_os()
     foreign_os = (
-        OperatingSystem.MACOS if host_os != OperatingSystem.MACOS else OperatingSystem.LINUX
+        OperatingSystem.LINUX if host_os != OperatingSystem.LINUX else OperatingSystem.WINDOWS
     )
 
     runner = LocalRunner()
@@ -62,12 +60,8 @@ def test_local_runner_rejects_foreign_os() -> None:
 
 def test_local_runner_rejects_foreign_architecture() -> None:
     """Local runner must reject incompatible foreign CPU architectures."""
-    host_os = OperatingSystem.WINDOWS if platform.system() == "Windows" else OperatingSystem.LINUX
-    host_arch = (
-        Architecture.X86_64
-        if platform.machine().lower() in ("amd64", "x86_64")
-        else Architecture.ARM64
-    )
+    host_os = LocalRunner._detect_host_os()
+    host_arch = LocalRunner._detect_host_arch()
     foreign_arch = Architecture.ARM64 if host_arch == Architecture.X86_64 else Architecture.X86_64
 
     runner = LocalRunner()

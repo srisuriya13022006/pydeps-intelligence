@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -21,12 +22,14 @@ from pydeps_intelligence.validation.validation_orchestrator import ValidationOrc
 
 def test_security_no_execution_without_explicit_authorization(tmp_path: Path) -> None:
     """Security rule: LocalRunner must never execute when allow_execution=False."""
+    host_os = LocalRunner._detect_host_os()
+    host_arch = LocalRunner._detect_host_arch()
     request = ValidationRequest(
         project_path=tmp_path,
         target_environment=TargetEnvironment(
-            python_version="3.11",
-            operating_system=OperatingSystem.WINDOWS,
-            architecture=Architecture.X86_64,
+            python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
+            operating_system=host_os,
+            architecture=host_arch,
         ),
         runner_type="local",
         execution_policy=ExecutionPolicy.STATIC_ONLY,
