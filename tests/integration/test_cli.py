@@ -10,12 +10,12 @@ from typer.testing import CliRunner
 from pydeps_intelligence import __version__
 from pydeps_intelligence.cli.main import app
 
-runner = CliRunner()
+runner = CliRunner(env={"NO_COLOR": "1"})
 
 
 def test_cli_help() -> None:
     """Test 'pydeps --help' displays usage, options, and returns 0."""
-    result = runner.invoke(app, ["--help"])
+    result = runner.invoke(app, ["--help"], color=False)
     assert result.exit_code == 0
     assert "PyDeps" in result.stdout
     assert "--help" in result.stdout

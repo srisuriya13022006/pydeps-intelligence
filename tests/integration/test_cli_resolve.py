@@ -10,12 +10,12 @@ from typer.testing import CliRunner
 
 from pydeps_intelligence.cli.main import app
 
-runner = CliRunner()
+runner = CliRunner(env={"NO_COLOR": "1"})
 
 
 def test_cli_resolve_help() -> None:
     """Test displaying help message for pydeps resolve."""
-    result = runner.invoke(app, ["resolve", "--help"])
+    result = runner.invoke(app, ["resolve", "--help"], color=False)
     assert result.exit_code == 0
     assert "Resolve direct and transitive dependencies" in result.stdout
     assert "--mode" in result.stdout
